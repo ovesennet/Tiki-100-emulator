@@ -9,13 +9,13 @@
 
 /* data for en seriekanal */
 struct ctcParams {
-  tiki_bool interrupt;   /* om interrupt skal genereres */
-  tiki_bool enable;      /* om teller av på eller av */
+  boolean interrupt;   /* om interrupt skal genereres */
+  boolean enable;      /* om teller av på eller av */
   int in;              /* inngang - ant. sykler mellom hver inn-puls */
   int out;             /* utgang - ant. sykler mellom hver ut-puls */
-  tiki_bool use4MHz;     /* om klokke skal brukes i stedet for inngang */
+  boolean use4MHz;     /* om klokke skal brukes i stedet for inngang */
   int count;           /* sykler igjen til neste ut-puls */
-  tiki_bool writeTk;     /* skriv tidskonstant neste gang */
+  boolean writeTk;     /* skriv tidskonstant neste gang */
   byte timeConst;      /* tidskonstant */
   int scale;           /* skaleringsfaktor */
 };

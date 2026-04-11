@@ -1,7 +1,7 @@
 /* keyboard.c V1.1.0
  *
  * Tastatur emulering for TIKI-100_emul
- * Copyright (C) Asbjï¿½rn Djupdal 2000-2001
+ * Copyright (C) Asbjørn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -16,7 +16,7 @@ static byte keyMatrix[12][8] = {
   {'4', 'r', 'f', 'v', '5', 't', 'g', 'b'},
   {'6', 'y', 'h', 'n', '7', 'u', 'j', 'm'},
   {'8', 'i', 'k', ',', '9', 'o', 'l', '.'},
-  {'0', 'p', 0xF8, '-', '+', 0xE5, 0xE6, KEY_HJELP},
+  {'0', 'p', (byte)'ø', '-', '+', (byte)'å', (byte)'æ', KEY_HJELP},
   {'@', '^', '\'', KEY_LEFT, KEY_UTVID, KEY_F1, KEY_F4, KEY_PGUP},
   {KEY_F2, KEY_F3, KEY_F5, KEY_F6, KEY_UP, KEY_PGDOWN, KEY_TABLEFT, KEY_DOWN},
   {KEY_NUMPLUS, KEY_NUMMINUS, KEY_NUMMULT, KEY_NUM7, KEY_NUM8, KEY_NUM9, KEY_NUMPERCENT, KEY_NUMEQU},

@@ -16,8 +16,8 @@ byte ram[64 * 1024];    /* hoved minne */
 extern byte gfxRam[];   /* grafikk minne */
 byte rom[16 * 1024];    /* monitor eprom, vanligvis bare 8k men støtter 16k */
 
-static tiki_bool gfxIn;   /* TRUE hvis grafikkram er synlig for prosessor */
-static tiki_bool romIn;   /* TRUE hvis rom er synlig for prosessor */
+static boolean gfxIn;   /* TRUE hvis grafikkram er synlig for prosessor */
+static boolean romIn;   /* TRUE hvis rom er synlig for prosessor */
 
 /*****************************************************************************/
 

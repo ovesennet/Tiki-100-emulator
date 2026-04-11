@@ -1,7 +1,7 @@
-/* win32.c V1.2.0
+/* win32.c V1.1.1
  *
  * Win32 systemspesifikk kode for TIKI-100_emul
- * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
+ * Copyright (C) Asbjørn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -13,17 +13,13 @@
 #include <windows.h>
 #include <commctrl.h>
 
-#include "log.h"
-
-#define ERROR_CAPTION     "TIKI-100_emul error"
+#define ERROR_CAPTION     "TIKI-100_emul feilmelding"
 #define STATUSBAR_HEIGHT  19
-#define TOOLBAR_HEIGHT    30
 
 /* protos */
 int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, int nWinMode);
 static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static BOOL CALLBACK DialogFunc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-static BOOL CALLBACK TestDialogFunc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 static void update (int x, int y, int w, int h);
 static void draw3dBox (int x, int y, int w, int h);
@@ -34,38 +30,38 @@ static void setParam (HANDLE portHandle, struct serParams *params);
 /* variabler */
 
 static byte keyTable[256] = {
-  /* 0x00 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x08 */ KEY_SLETT, KEY_BRYT, KEY_NONE, KEY_NONE, KEY_NONE, KEY_CR, KEY_NONE, KEY_NONE, 
-  /* 0x10 */ KEY_SHIFT, KEY_CTRL, KEY_NONE, KEY_NONE, KEY_LOCK, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x18 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_ANGRE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x20 */ KEY_SPACE, KEY_PGUP, KEY_PGDOWN, KEY_TABRIGHT, KEY_HOME, KEY_LEFT, KEY_UP, KEY_RIGHT, 
-  /* 0x28 */ KEY_DOWN, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_UTVID, KEY_TABLEFT, KEY_NONE, 
-  /* 0x30 */ '0', '1', '2', '3', '4', '5', '6', '7',
-  /* 0x38 */ '8', '9', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE,
-  /* 0x40 */ KEY_NONE, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
-  /* 0x48 */ 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
-  /* 0x50 */ 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
-  /* 0x58 */ 'x', 'y', 'z', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE,
-  /* 0x60 */ KEY_NUM0, KEY_NUM1, KEY_NUM2, KEY_NUM3, KEY_NUM4, KEY_NUM5, KEY_NUM6, KEY_NUM7, 
-  /* 0x68 */ KEY_NUM8, KEY_NUM9, KEY_NUMMULT, KEY_NUMPLUS, KEY_NONE, KEY_NUMMINUS, KEY_NUMDOT, KEY_NUMDIV, 
-  /* 0x70 */ KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_NONE, KEY_HJELP, 
-  /* 0x78 */ KEY_ENTER, KEY_NONE, KEY_NUMPERCENT, KEY_NUMEQU, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x80 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x88 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x90 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0x98 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xA0 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xA8 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xB0 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xB8 */ KEY_NONE, KEY_NONE, '^', '+', ',', '-', '.', '\'', 
-  /* 0xC0 */ 0xF8, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xC8 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xD0 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xD8 */ KEY_NONE, KEY_NONE, KEY_NONE, '@', KEY_GRAFIKK, 0xE5, 0xE6, KEY_NONE, 
-  /* 0xE0 */ KEY_NONE, KEY_NONE, '<', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xE8 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xF0 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
-  /* 0xF8 */ KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_SLETT, KEY_BRYT, KEY_NONE, KEY_NONE, KEY_NONE, KEY_CR, KEY_NONE, KEY_NONE, 
+  KEY_SHIFT, KEY_CTRL, KEY_NONE, KEY_NONE, KEY_LOCK, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_ANGRE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_SPACE, KEY_PGUP, KEY_PGDOWN, KEY_TABRIGHT, KEY_HOME, KEY_LEFT, KEY_UP, KEY_RIGHT, 
+  KEY_DOWN, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_UTVID, KEY_TABLEFT, KEY_NONE, 
+  '0', '1', '2', '3', '4', '5', '6', '7',
+  '8', '9', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE,
+  KEY_NONE, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
+  'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
+  'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
+  'x', 'y', 'z', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE,
+  KEY_NUM0, KEY_NUM1, KEY_NUM2, KEY_NUM3, KEY_NUM4, KEY_NUM5, KEY_NUM6, KEY_NUM7, 
+  KEY_NUM8, KEY_NUM9, KEY_NUMMULT, KEY_NUMPLUS, KEY_NONE, KEY_NUMMINUS, KEY_NUMDOT, KEY_NUMDIV, 
+  KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_NONE, KEY_HJELP, 
+  KEY_ENTER, KEY_NONE, KEY_NUMPERCENT, KEY_NUMEQU, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, '^', '+', ',', '-', '.', '\'', 
+  'ø', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, '@', KEY_GRAFIKK, 'å', 'æ', KEY_NONE, 
+  KEY_NONE, KEY_NONE, '<', KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, 
+  KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE
 };
 
 static HWND hwnd;
@@ -79,46 +75,32 @@ static byte pressedKeys[256];
 static byte *dsk[2];
 static DWORD fileSize[2];
 static int resolution;
-static tiki_bool slowDown = TRUE;
-static tiki_bool scanlines = FALSE;
-static tiki_bool st28b = FALSE;
+static boolean slowDown = TRUE;
+static boolean scanlines = FALSE;
+static boolean st28b = FALSE;
 static int width, height;
 static int size40x = 1, size80x = 1;
 static unsigned int xmin = (unsigned)~0;
 static unsigned int ymin = (unsigned)~0;
 static unsigned int xmax = 0;
 static unsigned int ymax = 0;
-static tiki_bool updateWindow = FALSE;
-static tiki_bool lock = FALSE;
-static tiki_bool grafikk = FALSE;
-static tiki_bool disk[2] = {FALSE, FALSE};
+static boolean updateWindow = FALSE;
+static boolean lock = FALSE;
+static boolean grafikk = FALSE;
+static boolean disk[2] = {FALSE, FALSE};
 static HANDLE port1;
 static HANDLE port2;
 static HANDLE port3;
 static char port1Name[256] = "COM1";
 static char port2Name[256] = "COM2";
 static char port3Name[256] = "LPT1";
-static HWND hwndToolbar;
-static HWND hwndSpeedToggle;
 
 /*****************************************************************************/
 
 int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, int nWinMode) {
   char szWinName[] = "TIKIWin";
+  MSG msg;
   WNDCLASSEX wcl;
-  int consoleEnabled = 0;
-
-  /* optional console for debugging */
-  if (strstr(lpszArgs, "-console")) {
-    AllocConsole();
-    freopen("CONOUT$", "w", stdout);
-    freopen("CONOUT$", "w", stderr);
-    consoleEnabled = 1;
-  }
-
-  logInit(consoleEnabled);
-  LOG_I("TIKI-100_emul v1.2.0 starting");
-  LOG_T("Command line: %s", lpszArgs);
 
   appInst = hThisInst;
 
@@ -138,14 +120,11 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   wcl.cbWndExtra = 0;
   wcl.hbrBackground = (HBRUSH)GetStockObject (BLACK_BRUSH);
   if (!RegisterClassEx (&wcl)) {
-    LOG_E("Failed to register window class");
     return 0;
   }
 
-  LOG_T("Window class registered");
-
-  /* create window */
-  hwnd = CreateWindow (szWinName, "TIKI-100 Emulator", WS_OVERLAPPEDWINDOW & ~WS_SIZEBOX & ~WS_MAXIMIZEBOX, CW_USEDEFAULT, 
+  /* lag vindu */
+  hwnd = CreateWindow (szWinName, "TIKI-100_emul", WS_OVERLAPPEDWINDOW & ~WS_SIZEBOX & ~WS_MAXIMIZEBOX, CW_USEDEFAULT, 
                        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, HWND_DESKTOP, NULL, hThisInst, NULL);
   changeRes (MEDRES);
   ShowWindow (hwnd, nWinMode);
@@ -156,12 +135,10 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
 
   /* finn katalog */
   GetCurrentDirectory (256, defaultDir);
-  LOG_T("Working directory: %s", defaultDir);
   
-  /* run emulator */
+  /* kjør emulator */
   if (!runEmul()) {
-    LOG_E("ROM file not found");
-    MessageBox (hwnd, "ROM file not found!", ERROR_CAPTION, MB_OK);
+    MessageBox (hwnd, "Finner ikke ROM-fil!", ERROR_CAPTION, MB_OK);
   }
 
   /* avslutt */
@@ -171,39 +148,20 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   if (port2) CloseHandle (port2);
   if (port3) CloseHandle (port3);
 
-  LOG_I("TIKI-100_emul shutting down");
-
-  return 0;
+  return msg.wParam;
 }
 
 static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
   switch (msg) {
     case WM_CREATE:
-      { /* set up memdc */
+      { /* sett opp memdc */
         HDC hdc = GetDC (hwnd);
         memdc = CreateCompatibleDC (hdc);
-        hbit = CreateCompatibleBitmap (hdc, 1024, 1024 + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT);
+        hbit = CreateCompatibleBitmap (hdc, 1024, 1024 + STATUSBAR_HEIGHT);
         SelectObject (memdc, hbit);
         SelectObject (memdc, GetStockObject (BLACK_BRUSH));
-        PatBlt (memdc, 0, 0, 1024, 1024 + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT, PATCOPY);
-        /* toolbar background */
-        SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
-        PatBlt (memdc, 0, 0, 1024, TOOLBAR_HEIGHT, PATCOPY);
+        PatBlt (memdc, 0, 0, 1024, 1024 + STATUSBAR_HEIGHT, PATCOPY);
         ReleaseDC (hwnd, hdc);
-        /* create toolbar button */
-        hwndToolbar = CreateWindow ("BUTTON", "Test",
-          WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-          4, 3, 60, 24,
-          hwnd, (HMENU)IDM_TESTDLG, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
-        SendMessage (hwndToolbar, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
-        /* create speed toggle button */
-        hwndSpeedToggle = CreateWindow ("BUTTON", "Limit speed",
-          WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-          70, 6, 100, 18,
-          hwnd, (HMENU)IDM_SPEED_TOGGLE, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
-        SendMessage (hwndSpeedToggle, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
-        SendMessage (hwndSpeedToggle, BM_SETCHECK, BST_CHECKED, 0);
-        LOG_T("Window created, memdc initialized");
       }
       break;
     case WM_PAINT:
@@ -218,13 +176,13 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
     case WM_SIZE:
       /* statusbar */
       SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
-      PatBlt (memdc, 0, TOOLBAR_HEIGHT + height, width, STATUSBAR_HEIGHT, PATCOPY);
+      PatBlt (memdc, 0, height, width, STATUSBAR_HEIGHT, PATCOPY);
       
-      /* tegn smÃ¥bokser */
-      draw3dBox (20, TOOLBAR_HEIGHT + height + 5, 9, 9);
-      draw3dBox (40, TOOLBAR_HEIGHT + height + 5, 9, 9);
-      draw3dBox (60, TOOLBAR_HEIGHT + height + 5, 9, 9);
-      draw3dBox (80, TOOLBAR_HEIGHT + height + 5, 9, 9);
+      /* tegn småbokser */
+      draw3dBox (20, height + 5, 9, 9);
+      draw3dBox (40, height + 5, 9, 9);
+      draw3dBox (60, height + 5, 9, 9);
+      draw3dBox (80, height + 5, 9, 9);
       
       /* oppdater diodelys */
       lockLight (lock);
@@ -244,20 +202,17 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
     case WM_COMMAND:
       switch (LOWORD (wParam)) {
         case IDM_RESET:
-          LOG_I("Emulator reset");
           resetEmul();
           break;
         case IDM_INNSTILLINGER:
-          LOG_T("Opening settings dialog");
           DialogBox (appInst, "dialog", hwnd, (DLGPROC)DialogFunc);
           break;
         case IDM_OM:
           MessageBox (hwnd, 
-                      "TIKI-100_emul v1.2.0 by Arctic Retro\n"
-                      "A freeware TIKI 100 Rev. C emulator.\n"
-                      "Z80 emulation copyright (C) Marat Fayzullin 1994,1995,1996,1997.\n"
-                      "Original code copyright (C) Asbjorn Djupdal 2000-2001.", 
-                      "About TIKI-100_emul",
+                      "TIKI-100_emul V1.1.1 - en freeware TIKI 100 Rev. C emulator.\n"
+                      "Z80 emulering copyright (C) Marat Fayzullin 1994,1995,1996,1997.\n"
+                      "Resten copyright (C) Asbjørn Djupdal 2000-2001.", 
+                      "Om TIKI-100_emul",
                       MB_OK);
           break;
         case IDM_AVSLUTT:
@@ -282,13 +237,6 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         case IDM_FJERN_B:
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_B, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (1);
-          break;
-        case IDM_TESTDLG:
-          DialogBox (appInst, "testdialog", hwnd, (DLGPROC)TestDialogFunc);
-          break;
-        case IDM_SPEED_TOGGLE:
-          slowDown = SendMessage (hwndSpeedToggle, BM_GETCHECK, 0, 0);
-          LOG_I("Speed limit %s", slowDown ? "enabled" : "disabled");
           break;
 #ifdef DEBUG
         case IDM_MONITOR:
@@ -345,17 +293,16 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
       switch (LOWORD(wParam)) {
         case IDD_OK: {
           int s40x, s80x;
-          tiki_bool sl;
-          tiki_bool st;
+          boolean sl;
+          boolean st;
           char p1[256];
           char p2[256];
           char p3[256];
           
           /* begrense hastighet */
           slowDown = SendDlgItemMessage (hdwnd, IDD_HASTIGHET, BM_GETCHECK, 0, 0);
-          SendMessage (hwndSpeedToggle, BM_SETCHECK, slowDown ? BST_CHECKED : BST_UNCHECKED, 0);
 
-          /* forandre vindus-stÃ¸rrelse */
+          /* forandre vindus-størrelse */
           s40x = SendMessage (ud40Wnd, UDM_GETPOS, 0, 0);
           s80x = SendMessage (ud80Wnd, UDM_GETPOS, 0, 0);
           sl = SendDlgItemMessage (hdwnd, IDD_BEVARFORHOLD, BM_GETCHECK, 0, 0);
@@ -377,7 +324,7 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
           SendDlgItemMessage (hdwnd, IDD_P2EDIT, WM_GETTEXT, 256, (LPARAM)p2);
           SendDlgItemMessage (hdwnd, IDD_P3EDIT, WM_GETTEXT, 256, (LPARAM)p3);
 
-          /* Ã¥pne/lukke porter */
+          /* åpne/lukke porter */
           if (SendDlgItemMessage (hdwnd, IDD_P1, BM_GETCHECK, 0, 0)) {
             /* port 1 */
             if (!port1 || strcmp (p1, port1Name)) {
@@ -385,8 +332,7 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
               SetCurrentDirectory (defaultDir);
               if ((port1 = CreateFile(p1, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, 0, NULL)) == 
                   INVALID_HANDLE_VALUE) {
-                MessageBox (hwnd, "Specified name for P1 not available!", ERROR_CAPTION, MB_OK);
-                LOG_E("Failed to open port P1: %s", p1);
+                MessageBox (hwnd, "Angitt navn på P1 ikke tilgjengelig!", ERROR_CAPTION, MB_OK);
                 port1 = 0;
               }
             }
@@ -401,9 +347,8 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
               SetCurrentDirectory (defaultDir);
               if ((port2 = CreateFile(p2, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, 0, NULL)) == 
                   INVALID_HANDLE_VALUE) {
-                MessageBox (hwnd, "Specified name for P2 not available!", ERROR_CAPTION, MB_OK);
-                LOG_E("Failed to open port P2: %s", p2);
-                port2 = 0;
+                MessageBox (hwnd, "Angitt navn på P2 ikke tilgjengelig!", ERROR_CAPTION, MB_OK);
+                port1 = 0;
               }
             }
           } else if (port2) {
@@ -417,9 +362,8 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
               SetCurrentDirectory (defaultDir);
               if ((port3 = CreateFile(p3, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, 0, NULL)) == 
                   INVALID_HANDLE_VALUE) {
-                MessageBox (hwnd, "Specified name for P3 not available!", ERROR_CAPTION, MB_OK);
-                LOG_E("Failed to open port P3: %s", p3);
-                port3 = 0;
+                MessageBox (hwnd, "Angitt navn på P3 ikke tilgjengelig!", ERROR_CAPTION, MB_OK);
+                port1 = 0;
               }
             }
           } else if (port3) {
@@ -427,26 +371,13 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
             port3 = 0;
           }
 
-          /* ta vare pÃ¥ portnavn */
+          /* ta vare på portnavn */
           strcpy (port1Name, p1);
           strcpy (port2Name, p2);
           strcpy (port3Name, p3);
         }
         case 2: /* lukkeknapp for dialogboks, vet ikke makronavnet for den */
         case IDD_AVBRYT:
-          EndDialog (hdwnd, 0);
-          break;
-      }
-      break;
-  }
-  return 0;
-}
-static BOOL CALLBACK TestDialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM lParam) {
-  switch (message) {
-    case WM_COMMAND:
-      switch (LOWORD(wParam)) {
-        case IDD_TESTDLG_OK:
-        case 2:
           EndDialog (hdwnd, 0);
           break;
       }
@@ -479,28 +410,23 @@ static void getDiskImage (int drive) {
               EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                               MF_BYCOMMAND | MF_ENABLED);    
               insertDisk (drive, dsk[drive], 40, 1, 18, 128);
-              LOG_I("Loaded disk %c: 40x1x18x128", 'A' + drive);
               break;
             case 40*1*10*512:
               EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                               MF_BYCOMMAND | MF_ENABLED);    
               insertDisk (drive, dsk[drive], 40, 1, 10, 512);
-              LOG_I("Loaded disk %c: 40x1x10x512", 'A' + drive);
               break;
             case 40*2*10*512:
               EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                               MF_BYCOMMAND | MF_ENABLED);    
               insertDisk (drive, dsk[drive], 40, 2, 10, 512);
-              LOG_I("Loaded disk %c: 40x2x10x512", 'A' + drive);
               break;
             case 80*2*10*512:
               EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                               MF_BYCOMMAND | MF_ENABLED);    
               insertDisk (drive, dsk[drive], 80, 2, 10, 512);
-              LOG_I("Loaded disk %c: 80x2x10x512", 'A' + drive);
               break;
             default:
-              LOG_W("Unsupported disk image size: %lu bytes", fileSize[drive]);
               removeDisk (drive);
               fileSize[drive] = 0;
           }
@@ -532,9 +458,8 @@ static void saveDiskImage (int drive) {
     }  
   }
 }
-/* Forandre opplÃ¸sning */
+/* Forandre oppløsning */
 void changeRes (int newRes) {
-  LOG_I("Changing resolution to %s", newRes == HIGHRES ? "high" : newRes == MEDRES ? "medium" : "low");
   RECT windowRect;
 
   switch (newRes) {
@@ -554,11 +479,11 @@ void changeRes (int newRes) {
   }
   GetWindowRect (hwnd, &windowRect);
   MoveWindow (hwnd, windowRect.left, windowRect.top, width + 2 * GetSystemMetrics (SM_CXFIXEDFRAME), 
-              height + TOOLBAR_HEIGHT + 2 * GetSystemMetrics (SM_CYFIXEDFRAME) + GetSystemMetrics (SM_CYCAPTION) +
+              height + 2 * GetSystemMetrics (SM_CYFIXEDFRAME) + GetSystemMetrics (SM_CYCAPTION) +
               GetSystemMetrics (SM_CYMENU) + STATUSBAR_HEIGHT, 1);
   /* slett bakgrunn */
   SelectObject (memdc, GetStockObject (BLACK_BRUSH));
-  PatBlt (memdc, 0, TOOLBAR_HEIGHT, width, height, PATCOPY);
+  PatBlt (memdc, 0, 0, width, height, PATCOPY);
   if (newRes != resolution) {
     memset (screen, 0, 1024*256);
     resolution = newRes;
@@ -582,8 +507,8 @@ void plotPixel (int x, int y, int color) {
       y *= size40x;
       break;
   }
-  SetPixelV (memdc, x, y + TOOLBAR_HEIGHT, colors[color]);
-  update (x, y + TOOLBAR_HEIGHT, 1, 1);
+  SetPixelV (memdc, x, y, colors[color]);
+  update (x, y, 1, 1);
 }
 /* Scroller skjerm 'distance' linjer oppover */
 void scrollScreen (int distance) {
@@ -609,13 +534,13 @@ void scrollScreen (int distance) {
       break;
   }
   /* scroll memdc */
-  BitBlt (memdc, 0, TOOLBAR_HEIGHT - distance, width, height + distance, memdc, 0, TOOLBAR_HEIGHT, SRCCOPY);
+  BitBlt (memdc, 0, -distance, width, height + distance, memdc, 0, 0, SRCCOPY);
   SelectObject (memdc, GetStockObject (BLACK_BRUSH));
   /* slett resten */
   if (distance > 0) {
-    PatBlt (memdc, 0, TOOLBAR_HEIGHT + height - distance, width, distance, PATCOPY);
+    PatBlt (memdc, 0, height - distance, width, distance, PATCOPY);
   } else {
-    PatBlt (memdc, 0, TOOLBAR_HEIGHT, width, -distance, PATCOPY);
+    PatBlt (memdc, 0, 0, width, -distance, PATCOPY);
   }
   /* oppdater vindu */
   InvalidateRect (hwnd, NULL, FALSE);
@@ -637,14 +562,14 @@ void changePalette (int colornumber, byte red, byte green, byte blue) {
     }
   }
 }
-/* Kalles periodisk. Lar system kode mÃ¥le / senke emuleringshastighet
- * Kan ogsÃ¥ brukes til sjekk av brukeraktivitet
+/* Kalles periodisk. Lar system kode måle / senke emuleringshastighet
+ * Kan også brukes til sjekk av brukeraktivitet
  * ms er antall "emulerte" millisekunder siden forrige gang loopEmul ble kalt
  */
 void loopEmul (int ms) {
   /* senk hastigheten */
   if (slowDown) {
-    static tiki_bool firstTime = TRUE;
+    static boolean firstTime = TRUE;
     static LARGE_INTEGER lastTime;
     LARGE_INTEGER currentTime;
     static LARGE_INTEGER freq;
@@ -709,34 +634,34 @@ void loopEmul (int ms) {
   }
 }
 /* Tenn/slukk lock lys */
-void lockLight (tiki_bool status) {
+void lockLight (boolean status) {
   HBRUSH brush = (status ?
                   GetSysColorBrush (COLOR_HIGHLIGHT) :
                   GetSysColorBrush (COLOR_3DFACE));
   SelectObject (memdc, brush);
-  PatBlt (memdc, 21, TOOLBAR_HEIGHT + height + 6, 7, 7, PATCOPY);
-  update (21, TOOLBAR_HEIGHT + height + 6, 7, 7);
+  PatBlt (memdc, 21, height + 6, 7, 7, PATCOPY);
+  update (21, height + 6, 7, 7);
   lock = status;
 }
 /* Tenn/slukk grafikk lys */
-void grafikkLight (tiki_bool status) {
+void grafikkLight (boolean status) {
   HBRUSH brush = (status ?
                   GetSysColorBrush (COLOR_HIGHLIGHT) :
                   GetSysColorBrush (COLOR_3DFACE));
   SelectObject (memdc, brush);
-  PatBlt (memdc, 41, TOOLBAR_HEIGHT + height + 6, 7, 7, PATCOPY);
-  update (41, TOOLBAR_HEIGHT + height + 6, 7, 7);
+  PatBlt (memdc, 41, height + 6, 7, 7, PATCOPY);
+  update (41, height + 6, 7, 7);
   grafikk = status;
 }
 /* Tenn/slukk disk lys for gitt stasjon */
-void diskLight (int drive, tiki_bool status) {
+void diskLight (int drive, boolean status) {
   int x = (drive ? 81 : 61);
   HBRUSH brush = (status ?
                   GetSysColorBrush (COLOR_HIGHLIGHT) :
                   GetSysColorBrush (COLOR_3DFACE));
   SelectObject (memdc, brush);
-  PatBlt (memdc, x, TOOLBAR_HEIGHT + height + 6, 7, 7, PATCOPY);
-  update (61, TOOLBAR_HEIGHT + height + 6, 7, 7);
+  PatBlt (memdc, x, height + 6, 7, 7, PATCOPY);
+  update (61, height + 6, 7, 7);
   disk[drive] = status;
 }
 static void update (int x, int y, int w, int h) {
@@ -815,7 +740,7 @@ static void setParam (HANDLE portHandle, struct serParams *params) {
   }
 
   if (!SetCommState(portHandle, &dcb)) {
-    LOG_E("SetCommState failed (baud=%lu, bits=%d)", dcb.BaudRate, dcb.ByteSize);
+    /* ingen aksjon */
   }
   return;
 }
@@ -826,7 +751,7 @@ void sendChar (int port, byte value) {
 
   if (portHandle) {
     if (!WriteFile (portHandle, &value, 1, &bytesWritten, NULL)) {
-      LOG_W("Failed to write to serial port %d", port);
+      /* kan ikke skrive til port */
     }
   }
 }
@@ -838,7 +763,7 @@ byte getChar (int port) {
 
   if (portHandle) {
     if (!ReadFile (portHandle, &value, 1, &bytesRead, NULL)) {
-      LOG_W("Failed to read from serial port %d", port);
+      /* kan ikke lese fra port */
     }
 
     /* flere tegn i buffer? */
@@ -861,7 +786,7 @@ void printChar (byte value) {
   
   if (port3) {
     if (!WriteFile (port3, &value, 1, &bytesWritten, NULL)) {
-      LOG_W("Failed to write to parallel port");
+      /* kan ikke skrive til port */
     }
   }
 }

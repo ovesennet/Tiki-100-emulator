@@ -1,7 +1,7 @@
-/* TIKI-100_emul.h V1.2.0
+/* TIKI-100_emul.h V1.1.0
  *
  * Definisjoner og konstanter nyttige for alle TIKI-100_emul moduler
- * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
+ * Copyright (C) Asbjørn Djupdal 2000-2001
  */
 
 #ifndef TIKI_EMUL_H
@@ -10,7 +10,7 @@
 #include "Z80.h"
 
 /* byte og word definert i Z80.h */
-typedef short tiki_bool;
+typedef short boolean;
 
 #define TRUE  ~0
 #define FALSE  0
@@ -35,18 +35,18 @@ struct serParams {
   int parity;       /* paritet, en av de angitt over */
   int stopBits;     /* antall stopbits, en av de angitt over */
   int baud;         /* baud */
-  /* fï¿½lgende er kun for bruk i serial.c: */
+  /* følgende er kun for bruk i serial.c: */
   int regPtr;
   int clkDiv;
-  tiki_bool exi;
-  tiki_bool txi;
-  tiki_bool sav;
+  boolean exi;
+  boolean txi;
+  boolean sav;
   int rxi;
-  tiki_bool rxe;
-  tiki_bool ae;
-  tiki_bool txe;
-  tiki_bool rxa;
-  tiki_bool newChar;
+  boolean rxe;
+  boolean ae;
+  boolean txe;
+  boolean rxa;
+  boolean newChar;
 };
 
 /* tastatur - ikke-alfanumeriske taster */
@@ -97,11 +97,11 @@ struct serParams {
 #define KEY_NUM9        0x80 | 0x39
 #define KEY_NUMDOT      0x80 | 0x2e
 
-/* Mï¿½ implementeres av system-koden
+/* Må implementeres av system-koden
  **********************************/
 
-/* Forandre opplï¿½sning.
- * Mï¿½ samtidig fylle alle pixler med farge 0
+/* Forandre oppløsning.
+ * Må samtidig fylle alle pixler med farge 0
  */
 void changeRes (int newRes);
 
@@ -109,29 +109,29 @@ void changeRes (int newRes);
 void plotPixel (int x, int y, int color);
 
 /* Scroll skjerm 'distance' linjer oppover
- * 'distance' kan vï¿½re bï¿½de positiv og negativ
+ * 'distance' kan være både positiv og negativ
  */
 void scrollScreen (int distance);
 
 /* Ny farge, gitt pallettnummer og intensitet 0-255.
- * Mï¿½ oppdatere alle pixler med dette pallettnummeret til ny farge
+ * Må oppdatere alle pixler med dette pallettnummeret til ny farge
  */
 void changePalette (int colornumber, byte red, byte green, byte blue);
 
-/* Kalles periodisk. Lar system kode mï¿½le / senke emuleringshastighet
- * Kan ogsï¿½ brukes til sjekk av brukeraktivitet / serieporter
+/* Kalles periodisk. Lar system kode måle / senke emuleringshastighet
+ * Kan også brukes til sjekk av brukeraktivitet / serieporter
  * ms er antall "emulerte" millisekunder siden forrige gang loopEmul ble kalt
  */
 void loopEmul (int ms);
 
 /* Tenn/slukk lock lys */
-void lockLight (tiki_bool status);
+void lockLight (boolean status);
 
 /* Tenn/slukk grafikk lys */
-void grafikkLight (tiki_bool status);
+void grafikkLight (boolean status);
 
 /* Tenn/slukk disk lys for gitt stasjon */
-void diskLight (int drive, tiki_bool status);
+void diskLight (int drive, boolean status);
 
 /* Sjekk status til hver av de gitte tastene
  * Sett bit n i returkode hvis tast n IKKE er nedtrykt
@@ -160,11 +160,11 @@ void printChar (byte value);
 /* Kan kalles av system-koden
  ****************************/
 
-/* Starter emulering, returnerer nï¿½r emulering avsluttes
+/* Starter emulering, returnerer når emulering avsluttes
  * Returverdi ved feil: FALSE
  * Ellers returneres TRUE (etter at quitEmul() er kalt)
  */
-tiki_bool runEmul (void);
+boolean runEmul (void);
 
 /* Ny diskett i stasjon
  * disk:      Hvilken stasjon (0 eller 1)
@@ -184,12 +184,12 @@ void resetEmul (void);
 void quitEmul (void);
 
 #ifdef DEBUG
-/* ï¿½pner avlusnings monitor */
+/* Åpner avlusnings monitor */
 void trace (void);
 #endif
 
-/* Setter bï¿½yle ST 28 b */
-void setST28b (tiki_bool status);
+/* Setter bøyle ST 28 b */
+void setST28b (boolean status);
 
 /* Nytt serietegn mottatt
  * port = 0: port 1

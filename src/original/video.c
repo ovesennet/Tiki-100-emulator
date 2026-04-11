@@ -18,7 +18,7 @@ byte gfxRam[32 * 1024];
 
 static byte red = 0, green = 0, blue = 0;     /* farge-register */
 static int res = MEDRES;    /* gjeldende oppløsning */
-static tiki_bool changeColor = FALSE;  /* forandre farge hver gang fargeregister forandres */
+static boolean changeColor = FALSE;  /* forandre farge hver gang fargeregister forandres */
 static int colornumber = 0;
 
 /*****************************************************************************/

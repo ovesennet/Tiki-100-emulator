@@ -1,0 +1,108 @@
+## version $VER: tikiemul.catalog 1.1 (02.06.01)
+## codeset 0
+## language X
+;
+MSG_EMULATOR_MENU
+
+;  \0Emulator
+;
+MSG_EMULATOR_RESET
+
+; R\0Reset
+;
+MSG_EMULATOR_ABOUT
+
+;  \0About...
+;
+MSG_EMULATOR_QUIT
+
+; Q\0Quit
+;
+MSG_DISKDRIVE_MENU
+
+;  \0Diskdrive
+;
+MSG_DISKDRIVE_LOADA
+
+; A\0Load disk A...
+;
+MSG_DISKDRIVE_LOADB
+
+; B\0Load disk B...
+;
+MSG_DISKDRIVE_SAVEA
+
+;  \0Save disk A...
+;
+MSG_DISKDRIVE_SAVEB
+
+;  \0Save disk B...
+;
+MSG_DISKDRIVE_REMOVEA
+
+;  \0Remove disk A
+;
+MSG_DISKDRIVE_REMOVEB
+
+;  \0Remove disk B
+;
+MSG_OPTIONS_MENU
+
+;  \0Options
+;
+MSG_OPTIONS_SLOWDOWN
+
+;  \0Slow down
+;
+MSG_OPTIONS_SCANLINES
+
+;  \0Scanlines
+;
+MSG_OPTIONS_SIZE40
+
+;  \000Lowres size
+;
+MSG_OPTIONS_SIZE40_ONE
+
+;  \0Standard
+;
+MSG_OPTIONS_SIZE40_TWO
+
+;  \0Double
+;
+MSG_OPTIONS_SIZE40_FOUR
+
+;  \0Quadruple
+;
+MSG_OPTIONS_SIZE80
+
+;  \0Medres size
+;
+MSG_OPTIONS_SIZE80_ONE
+
+;  \0Standard
+;
+MSG_OPTIONS_SIZE80_TWO
+
+;  \0Double
+;
+MSG_DEBUG_MENU
+
+;  \0Debug
+;
+MSG_DEBUG_MONITOR
+
+; M\0Monitor
+;
+MSG_ABOUTBOX_TITLE
+
+; About TIKI-100_emul
+;
+MSG_ABOUTBOX_TEXT
+
+; TIKI-100_emul V1.1.1 - a freeware TIKI 100 Rev. C emulator.\nZ80 emulation copyright (C) Marat Fayzullin 1994,1995,1996,1997.\nThe rest is copyright (C) Asbjørn Djupdal 2000-2001.
+;
+MSG_ABOUTBOX_BUTTON
+
+; Ok
+;

@@ -10,12 +10,12 @@
 /* variabler */
 
 Z80 cpu;
-static tiki_bool done = FALSE;
+static boolean done = FALSE;
 
 /*****************************************************************************/
 
 /* starter emulering, returnerer når emulering avslutter */
-tiki_bool runEmul (void) {
+boolean runEmul (void) {
 #ifdef DEBUG
   cpu.Trap = 0xffff;
 #endif

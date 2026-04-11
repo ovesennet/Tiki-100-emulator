@@ -1,7 +1,7 @@
-/* win32_res.rc V1.1.0
+/* win32_res.rc V1.2.0
  *
  * Win32 resources for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) Asbjorn Djupdal 2000-2001
  */
 
 #include <windows.h>
@@ -11,17 +11,17 @@
 menu MENU {
    POPUP "&Emulator" {
       MENUITEM "&Reset", IDM_RESET
-      MENUITEM "&Innstillinger...", IDM_INNSTILLINGER
-      MENUITEM "&Om...", IDM_OM
-      MENUITEM "&Avslutt", IDM_AVSLUTT
+      MENUITEM "&Settings...", IDM_INNSTILLINGER
+      MENUITEM "&About...", IDM_OM
+      MENUITEM "E&xit", IDM_AVSLUTT
    }
-   POPUP "&Diskettstasjon" {
-      MENUITEM "Hent plate &A...", IDM_HENT_A
-      MENUITEM "Hent plate &B...", IDM_HENT_B
-      MENUITEM "Lagre plate A...", IDM_LAGRE_A, GRAYED
-      MENUITEM "Lagre plate B...", IDM_LAGRE_B, GRAYED
-      MENUITEM "Fjern plate A", IDM_FJERN_A
-      MENUITEM "Fjern plate B", IDM_FJERN_B
+   POPUP "&Disk drive" {
+      MENUITEM "Load disk &A...", IDM_HENT_A
+      MENUITEM "Load disk &B...", IDM_HENT_B
+      MENUITEM "Save disk A...", IDM_LAGRE_A, GRAYED
+      MENUITEM "Save disk B...", IDM_LAGRE_B, GRAYED
+      MENUITEM "Eject disk A", IDM_FJERN_A
+      MENUITEM "Eject disk B", IDM_FJERN_B
    }
 #ifdef DEBUG
    POPUP "&Debug" {
@@ -32,28 +32,35 @@ menu MENU {
 
 dialog DIALOG DISCARDABLE  30, 30, 269, 137
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TIKI-100_emul innstillinger"
+CAPTION "TIKI-100_emul settings"
 {
     DEFPUSHBUTTON   "OK", IDD_OK, 155, 114, 50, 14
-    PUSHBUTTON      "Avbryt", IDD_AVBRYT, 211, 114, 50, 14
+    PUSHBUTTON      "Cancel", IDD_AVBRYT, 211, 114, 50, 14
 
-    AUTOCHECKBOX    "Senk hastighet", IDD_HASTIGHET, 7, 7, 63, 10
+    AUTOCHECKBOX    "Limit speed", IDD_HASTIGHET, 7, 7, 63, 10
 
-    GROUPBOX        "Skjermforstørring", -1, 7, 26, 121, 78
+    GROUPBOX        "Screen scaling", -1, 7, 26, 121, 78
     EDITTEXT        IDD_40EDIT, 21, 42, 25, 14, ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER
     EDITTEXT        IDD_80EDIT, 21, 61, 25, 14, ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER
-    LTEXT           "40 tegns skjerm", -1, 55, 45, 60, 8
-    LTEXT           "80 tegns skjerm", -1, 55, 64, 60, 8
-    AUTOCHECKBOX    "Bevar forhold", IDD_BEVARFORHOLD, 21, 80, 58, 10
+    LTEXT           "40 column screen", -1, 55, 45, 65, 8
+    LTEXT           "80 column screen", -1, 55, 64, 65, 8
+    AUTOCHECKBOX    "Keep aspect ratio", IDD_BEVARFORHOLD, 21, 80, 75, 10
 
-    GROUPBOX        "Porter", -1, 133, 9, 128, 95
-    AUTOCHECKBOX    "Sett ST 28 b", IDD_ST28B, 145, 23, 56, 10
+    GROUPBOX        "Ports", -1, 133, 9, 128, 95
+    AUTOCHECKBOX    "Set ST 28 b", IDD_ST28B, 145, 23, 56, 10
     EDITTEXT        IDD_P1EDIT, 145, 42, 42, 14, ES_AUTOHSCROLL
     EDITTEXT        IDD_P2EDIT, 145, 61, 42, 14, ES_AUTOHSCROLL
     EDITTEXT        IDD_P3EDIT, 145, 80, 42, 14, ES_AUTOHSCROLL
-    AUTOCHECKBOX    "Serieport P1", IDD_P1, 193, 45, 63, 8
-    AUTOCHECKBOX    "Serieport P2", IDD_P2, 193, 64, 63, 8 
-    AUTOCHECKBOX    "Parallellport P3", IDD_P3, 193, 83, 63, 8
+    AUTOCHECKBOX    "Serial port P1", IDD_P1, 193, 45, 63, 8
+    AUTOCHECKBOX    "Serial port P2", IDD_P2, 193, 64, 63, 8
+    AUTOCHECKBOX    "Parallel port P3", IDD_P3, 193, 83, 68, 8
+}
+
+testdialog DIALOG DISCARDABLE 30, 30, 160, 60
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Test Dialog"
+{
+    DEFPUSHBUTTON "OK", IDD_TESTDLG_OK, 55, 36, 50, 14
 }
 
 icon ICON win32.ico

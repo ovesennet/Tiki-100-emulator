@@ -42,10 +42,10 @@ byte getTrack (void);
 byte getSector (void);
 byte getDiskData (void);
 /* sett stasjon aktiv / inaktiv */
-void disk0 (tiki_bool status);
-void disk1 (tiki_bool status);
+void disk0 (boolean status);
+void disk1 (boolean status);
 /* skru motor på / av */
-void diskMotor (tiki_bool status);
+void diskMotor (boolean status);
 
 /*****************************************************************************/
 /* keyboard.c                                                                */

@@ -20,7 +20,7 @@ static byte serStatus (struct serParams *sParams);
 
 extern Z80 cpu;   /* må ha tilgang til cpu for å gjøre interrupt */
 
-static tiki_bool st28b = FALSE;    /* jumper i TIKI-100 */
+static boolean st28b = FALSE;    /* jumper i TIKI-100 */
 
 /* parametre for de to seriekanalene */
 static struct serParams serAParams;
@@ -180,7 +180,7 @@ static byte serStatus (struct serParams *sParams) {
   return returnValue;
 }
 /* sett jumper ST28b */
-void setST28b (tiki_bool status) {
+void setST28b (boolean status) {
   st28b = status;
   recalcBaud();
 }

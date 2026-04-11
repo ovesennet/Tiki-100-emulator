@@ -1,0 +1,32 @@
+TIKI-100_emul V1.1.1, 25-aug-2001
+
+A freeware TIKI-100 Rev. C emulator
+
+Z80 emulation copyright (C) Marat Fayzullin
+The rest is copyright (C) Asbjørn Djupdal
+
+I permit redistribution and free use of this emulator. It is not legal
+to use it for commersial purposes. 
+
+---------------------------------------------------------------------------
+
+This emulator emulates the TIKI-100 computer, a norwegian
+home computer released in 1984. It uses a norwegian operating system,
+TIKO, compatible with CP/M-2.2. 
+
+It should be quite easy to understand how to use the emulator if you
+are familiar with how emulators in general works. If you have any
+problems at all, contact me (email-address below). 
+
+I'm sorry this text doesn't describe the emulator in more detail, but
+because of it's norwegian operating system I guess most people that is  
+interested can read norwegian. See the norwegian text for more detail. 
+
+My TIKI-100 homepage, with TIKI programs, information and
+emulator-source/binaries is located here (norwegian only): 
+
+http://www.stud.ntnu.no/~djupdal/tiki/
+
+Send comments and questions to:
+
+djupdal@stud.ntnu.no

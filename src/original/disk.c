@@ -19,7 +19,7 @@ enum diskCommands {
 /* data for en diskettstasjon */
 struct diskParams {
   byte *diskImage;  /* diskettbilde */
-  tiki_bool active;   /* om det er diskett i stasjonen */
+  boolean active;   /* om det er diskett i stasjonen */
   int tracks;       /* antall spor */
   int sides;        /* antall sider - 1 */
   int sectors;      /* sektorer pr spor */
@@ -30,7 +30,7 @@ struct diskParams {
 /* protos */
 
 static void setLights (void);
-static void setLight (int drive, tiki_bool status);
+static void setLight (int drive, boolean status);
 
 /* variabler */
 
@@ -39,7 +39,7 @@ static struct diskParams params1;   /* data for stasjon 1 */
 static struct diskParams *params;   /* data for aktiv plate */
 
 static int side = 0;                /* gjeldende side (0 eller 1) */
-static tiki_bool motOn = FALSE;       /* om motor er på */
+static boolean motOn = FALSE;       /* om motor er på */
 
 static byte track = 0;              /* sporregister */
 static byte sector = 1;             /* sektorregister */
@@ -271,7 +271,7 @@ byte getDiskData (void) {
   return data;
 }
 /* sett disk 0 aktiv / inaktiv */
-void disk0 (tiki_bool status) {
+void disk0 (boolean status) {
   if (status) {
     params = &params0;
   } else {
@@ -280,7 +280,7 @@ void disk0 (tiki_bool status) {
   setLights();
 }
 /* sett disk 1 aktiv / inaktiv */
-void disk1 (tiki_bool status) {
+void disk1 (boolean status) {
   if (status) {
     params = &params1;
   } else {
@@ -289,7 +289,7 @@ void disk1 (tiki_bool status) {
   setLights();
 }
 /* skru motor på / av */
-void diskMotor (tiki_bool status) {
+void diskMotor (boolean status) {
   motOn = status;
   setLights();
 }
@@ -307,7 +307,7 @@ static void setLights (void) {
   }
 }
 /* sett disk lys til gitt stasjon og status */
-static void setLight (int drive, tiki_bool status) {
+static void setLight (int drive, boolean status) {
   static int l[2] = {0, 0};
 
   if (l[drive] != status) {

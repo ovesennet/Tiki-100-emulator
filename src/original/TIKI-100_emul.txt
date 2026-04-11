@@ -1,0 +1,339 @@
+TIKI-100_emul V1.1.1, 25 august 2001
+
+En freeware TIKI-100 Rev. C emulator
+
+Z80 emulering copyright (C) Marat Fayzullin. 
+Resten copyright (C) Asbjørn Djupdal.
+
+Jeg gir tillatelse til å bruke og spre denne emulatoren fritt bortsett
+fra til kommersielle formål. Det skal aldri tjenes penger på denne
+emulatoren. 
+
+
+Introduksjon
+------------
+
+TIKI-100 er en norskbygd maskin lansert i 1984. Den kjører et norsk
+operativsystem, TIKO, som er kompatibelt med CP/M-2.2. Maskina har en
+Z80A på 4MHz, fargegrafikk og 3 kanalers lyd. Den ble mye brukt i norske
+skoler. 
+
+Programmet du nå leser om er en TIKI-100 emulator, dvs et program som
+lar deg kjøre all programvare som finnes til TIKI-100 på en mer
+moderne datamaskin. 
+
+Emulatoren er skrevet i C. Kildefilene er tilgjengelig på emulatorens
+hjemmeside: http://www.stud.ntnu.no/~djupdal/tiki/emulator/
+
+Hva som emuleres
+----------------
+
+- Z80 CPU
+- CTC klokkekrets
+- DART rs-232 serieporter (begrenset)
+- PIO parallellporter (svært begrenset)
+- Videokrets
+- FD17xx diskettkontroller
+- Div andre småting som minnehåndtering, tastatur, etc. 
+
+Hva som mangler
+---------------
+
+- AY-3-8912 lydgenerator
+- Modemsignaler (DART). Emulering av serieporter skjer uten noen
+  kontroll på modemsignaler. 
+- Skikkelig emulering av parallellporter (PIO). Nå emuleres bare
+  det aller mest nødvendige for å kunne bruke skriver. 
+- Emulering av diverse tilleggsutstyr (harddisk, 8088-kort, etc.)
+
+Bruk av emulatoren
+------------------
+
+Denne emulatoren er en såkalt maskinvareemulator, dvs den etterligner
+maskinvaren i en TIKI-100. Det gjør at alle operativsystemer som
+finnes til TIKI-100 vil kjøre på denne emulatoren, såfremt de ikke
+forutsetter tilleggsutstyr som ikke støttes.
+
+Når emulatoren starter opp prøver den å laste inn fila
+"tiki.rom". Denne inneholder en kopi av ROM'en i en ekte
+TIKI-100. Ønsker du å bruke en annen ROM kan du bare bytte ut denne 
+fila. Emulatoren støtter alle ROM-filer opp til 16kB, akkurat som en
+ekte TIKI-100. OBS: En slik fil MÅ være tilstede! 
+
+Emulatoren bruker diskettfiler. En diskettfil er en TIKI-100 diskett
+som i sin helhet har blitt kopiert inn på en enkelt fil. Det som er
+viktig å vite om diskettfilene i denne emulatoren er at forandringer
+som gjøres på en diskett i emulatoren ikke blir lagret før du
+eksplisitt ber emulatoren om det.
+
+Etter at emulatoren har startet opp vil du få det velkjente TIKI-100
+oppstartsbildet på skjermen: "Sett inn en TIKI diskett og trykk B"
+
+Bruk av emulatoren utenom dette avhenger av hvilken versjon du bruker.
+
+Amiga-versjonen
+---------------
+
+Merk at serieporter og parallellport foreløpig ikke støttes av
+Amigaversjonen.
+
+Nederst i emulatorvinduet ser du 4 "lysdioder". Disse tilsvarer
+lysdiodene på lock-tasten, grafikk-tasten, diskettstasjon a og
+diskettstasjon b. 
+
+Amigaversjonen har disse menyene som burde være selvforklarende: 
+
+ - Emulator
+   - Reset             
+   - Om...             
+   - Avslutt           
+ - Diskettstasjon
+   - Hent plate A...    
+   - Hent plate B...    
+   - Lagre plate A...   
+   - Lagre plate B...   
+   - Fjern plate A...   
+   - Fjern plate B...   
+ - Innstillinger
+   - Begrens hastighet (foreløpig ikke i bruk)
+   - Bevar forhold
+   - 40-modus størrelse
+     - Standard         
+     - Fordoblet
+     - Firedoblet
+   - 80-modus størrelse
+     - Standard
+     - Fordoblet
+
+Plassering av TIKI taster på tastaturet:
+
+ GRAFIKK:       ` (til venstre for tasten 1)
+ BRYT:          Tab
+ ANGRE:         Esc
+ LOCK:          Venstre Alt
+ UTVID:         \ (til venstre for slettetasten)
+ HJEM:          Del
+ Side opp:      F7
+ Side ned:      F8
+ Venstre tab:   F9
+ Høyre tab:     F10
+ %:             [ (på numerisk tastatur)
+ =:             ] (på numerisk tastatur)
+
+Resten av tastene er plassert på de tilsvarende Amiga-tastene. 
+
+Win32-versjonen
+---------------
+
+Nederst i emulatorvinduet ser du 4 "lysdioder". Disse tilsvarer
+lysdiodene på lock-tasten, grafikk-tasten, diskettstasjon a og
+diskettstasjon b. 
+
+Win32-versjonen har disse menyene som burde være selvforklarende: 
+
+ - Emulator
+   - Reset
+   - Innstillinger...
+   - Om...
+   - Avslutt
+ - diskettstasjon
+    - Hent plate A...
+    - Hent plate B...
+    - Lagre plate A...
+    - Lagre plate B...
+    - Fjern plate A
+    - Fjern plate B
+
+Menyvalget "Innstillinger" bringer fram en dialogboks der du kan
+stille inn diverse:
+
+ - Merk "Senk hastighet" dersom du vil at emulatoren skal kjøre på
+   samme hastighet som en ekte TIKI-100. Denne har bare virkning
+   dersom din datamaskin er for rask. 
+ - Alt innenfor boksen "Skjermforstørring" styrer forstørring av
+   TIKI-skjermbilde. "Bevar forhold" gir samme forhold på
+   emulatorvinduet som på en ekte TIKI-skjerm. 
+ - Det innenfor boksen "Porter" bestemmer hvordan de emulerte
+   TIKI-portene skal brukes. Skriv inn navnet på PC-portene du vil
+   skal benyttes til de forskjellige TIKI-portene. Skriver du inn et
+   filnavn i stedet vil alt som skulle blitt sendt til en port i
+   stedet bli lagret til den fila. 
+   Merker du av "Sett ST 28 b" vil du få samme effekt som om du satte
+   den tilsvarende bøylen ("jumper'en") i en ekte TIKI-100. Du vil
+   neppe få bruk for denne. 
+
+Plassering av TIKI taster på tastaturet:
+
+ GRAFIKK:       | (til venstre for tasten 1)
+ BRYT:          Tab
+ ANGRE:         Esc
+ UTVID:         Insert
+ Venstre tab:   Delete
+ Høyre tab:     End
+ HJELP:         F8
+ ENTER (num):   F9
+ %:             F11
+ =:             F12
+
+Resten av tastene er plassert på de tilsvarende PC-tastene. 
+
+Unix-versjonen
+--------------
+
+Nederst i emulatorvinduet ser du 4 "lysdioder". Disse tilsvarer
+lysdiodene på lock-tasten, grafikk-tasten, diskettstasjon a og
+diskettstasjon b. 
+
+Trykk Escape-tasten i emulatorvinduet for å gå inn i kommandomodus. Da
+vil en prompt komme fram i xtermen du startet emulatoren fra. Følgende
+kommandoer kan da skrives inn:
+
+hjelp                      : Vis hjelpetekst
+h                          : Forkortelse for 'hjelp'
+
+disk <stasjon> <filnavn>   : Hent inn diskettfil
+d <stasjon> <filnavn>      : Forkortelse for 'disk ...'
+
+lagre <stasjon> <filnavn>  : Lagre diskettfil
+l <stasjon> <filnavn>      : Forkortelse for 'lagre...'
+
+fjern <stasjon>            : Fjern diskettfil
+f <stasjon>                : Forkortelse for 'fjern...'
+
+pk [kommandonavn]          : Send utskrift til print-kommando
+
+pf [filnavn]               : Send utskrift til fil
+
+reset                      : Reset emulator
+
+fortsett                   : Fortsett emulering
+c                          : Forkortelse for 'fortsett'
+
+om                         : Om emulator (bl.a versjonsnummer)
+
+avslutt                    : Avslutt emulator
+q                          : Forkortelse for 'avslutt'
+
+Alle diskettkommandoene tar et stasjonsargument. Det er enten a eller
+b, avhengig av hvilken diskettstasjon du ønsker å benytte kommandoen
+på. Stasjon a er oppstartsdiskettstasjonen i en TIKI-100.
+
+Eksempel: For å hente inn diskettfil 'plater/tiko_kjerne_v4.01.dsk'
+til stasjon a skriver du: 'disk a plater/tiko_kjerne_v4.01.dsk'.
+
+Kommandoene pk og pf spesifiserer hhv en printkommando eller en fil
+som utskrift fra TIKI-programmer skal sendes til. Dersom du ønsker å
+skru av utskriftsmulighetene igjen så gi kommandoen uten argument. Du
+kan skrive til både kommando og fil samtidig. Vær oppmerksom på at
+utskrift til en printkommando som oftest ikke sendes til skriver før
+forbindelsen til den avsluttes. Så selv om TIKI-programmet er ferdig
+med utskriften må du avslutte printkommando med "pk" for å sende
+utskrift til skriver.
+
+Eksempel: For å sende utskrift til kommandoen 'lpr' skriver du: 
+'pk lpr'. For å sende utskrift til fila 'utskrift' skriver du: 
+'pf utskrift'. 
+
+Plassering av TIKI taster på tastaturet:
+
+BRYT:        Break, F10
+SLETT:       BackSpace, Delete
+GRAFIKK:     F8
+ANGRE:       Redo, F9
+LOCK:        Caps_Lock, Shift_Lock, F7
+HJELP:       Help, F11
+UTVID:       Insert, F12
+Venstre TAB: Prior
+Høyre TAB:   Tab, Next
+
+Navnet på TIKI-tasten er til venstre og navnet på den (eller de)
+tilsvarende X11-keysym tasten(e) er til høyre. For mer informasjon om
+keysyms, les man-siden til 'xmodmap'.
+
+Resten av tastene er mappet til tilsvarende keysyms. Merk at TIKI-100
+bare har 6 F-taster, så dersom et program ber deg trykke på F7, er det
+antakelig ute etter shift-F1 i stedet. 
+
+Følgende kommandolinjeargumenter kan benyttes ved oppstart:
+
+ -display <display>          Angi display
+ -d <display>                Samme som over
+
+ -geometry <geometry>        Angi vindusplassering (størrelse ignoreres)
+ -g <geometry>               Samme som over
+
+ -diska <diskettfil>         Angi diskettfil til stasjon A
+ -diskb <diskettfil>         Angi diskettfil til stasjon B
+
+ -bevarforhold               Emulatorvindu har samme forhold som en ekte
+                             TIKI-skjerm 
+ -ikkebevarforhold           Negasjonen av den over
+
+ -40x <forstørrelse>         Angi forstørring av 40-modus skjerm (1-4)
+ -80x <forstørrelse>         Angi forstørring av 80-modus skjerm (1-2)
+
+ -begrens                    Dersom datamaskin er for rask, sett ned
+                             hastigheten til "normal" TIKI-100
+                             hastighet
+ -ikkebegrens                Negasjonen av den over
+
+ -port1 <device>             Angi hvilken device du vil skal benyttes til
+                             TIKI-serieport P1 (f.eks /dev/tty00)
+ -port2 <device>             Samme som -port1 men for TIKI-serieport P2. 
+
+ -pk <utskriftskommando>     Angi hvilken kommando utskrift skal sendes til.
+ -pf <utskriftsfil>          Angi hvilken fil utskrift skal sendes til. 
+
+ -st28b                      Tilsvarende å sette bøyle ('jumper') ST 28 b i en
+                             ekte TIKI-100. Du vil neppe få bruk for denne. 
+ -ikkest28b                  Negasjonen av den over
+
+Disse kan også settes i .Xresources filen:
+
+Tikiemul.geometry (geometry)
+Tikiemul.diska (filnavn)
+Tikiemul.diskb (filnavn)
+Tikiemul.bevarforhold (on eller off)
+Tikiemul.40x (1-4)
+Tikiemul.80x (1-2)
+Tikiemul.begrens (on eller off)
+Tikiemul.port1 (device)
+Tikiemul.port2 (device)
+Tikiemul.pk (utskriftskommando)
+Tikiemul.pf (utskriftsfil)
+Tikiemul.st28b (on eller off)
+
+Dersom du ikke gir noen kommandolinjeargumenter, og ingen verdier er
+satt i .Xresources, vil følgende standardverdier benyttes: 
+'-begrens -ikkest28b -ikkebevarforhold -40x 1 -80x 1', ingen
+diskettfiler i stasjonen, og ingen printkommando/fil. 
+
+Annet
+-----
+
+På min TIKI-100 hjemmeside finner du mer informasjon om TIKI-100. Der
+finner du også mange kjente TIKI-100 programmer som kan benyttes i
+denne emulatoren. Her finner du også emulatorens hjemmeside.
+
+http://www.stud.ntnu.no/~djupdal/tiki/
+
+Send spørsmål, forslag til forbedringer og andre kommentarer til:
+
+djupdal@stud.ntnu.no
+
+Historie
+--------
+
+* 25 aug 2001 Versjon 1.1.1
+  - Fikset feil i diskettkontrolleremulering
+* 24 aug 2001 Versjon 1.1.0 for Amiga, win32, unix.
+  - Generell opprenskning i alle kildefiler. 
+  - Fikset feil i diskkontrolleremulering
+  - Fikset feil i videoemulering
+  - Laget (begrenset) serie og parallellport emulering
+  - Laget unix-versjon
+  - Laget helt ny Amiga-versjon
+  - Forbedret win32-versjon
+  - Kildefiler tilgjengelig
+* 21 sep 2000 Versjon 1.0.1 for win32
+* 26 aug 2000 Versjon 1.0.0 for Amiga
