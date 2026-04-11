@@ -143,6 +143,7 @@ void OutZ80 (register word port, register byte value) {
       disk1 (value & 2);
       romIn = !(value & 4);
       gfxIn = value & 8;
+      diskSetSide (value & 0x10);
       if (gfx != !(value & 32)) {
         grafikkLight (!(value & 32));
         gfx = !(value & 32);

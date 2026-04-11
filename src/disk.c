@@ -9,6 +9,8 @@
 
 #include <string.h>
 
+extern byte ram[];
+
 enum diskCommands {
   NO_COMMAND, READ_SECT, READ_ADDR, WRITE_SECT, READ_TRACK, WRITE_TRACK
 };
@@ -40,6 +42,7 @@ static struct diskParams params1;   /* data for stasjon 1 */
 static struct diskParams *params;   /* data for aktiv plate */
 
 static int side = 0;                /* gjeldende side (0 eller 1) */
+static int sideSelect = 0;          /* sidevelger fra systemregister (port 0x1C bit 4) */
 static tiki_bool motOn = FALSE;       /* om motor er på */
 
 static byte track = 0;              /* sporregister */
@@ -117,6 +120,32 @@ void diskControl (byte value) {
             params->sectSize + sector * params->sectSize;
         imageOffset = ((params->realTrack << params->sides) + side) * params->sectors *
           params->sectSize + (sector-1) * params->sectSize;
+        /* Patch the CP/M DPB for 200KB single-sided disks.
+         * The TIKO BIOS format detection doesn't always update
+         * the DPB when a 200KB disk is loaded in a drive that
+         * was previously using a different format.  Write the
+         * correct 200KB DPB values directly into Z80 RAM so
+         * that CP/M uses the right disk geometry. */
+        { static int patched[2] = {0, 0};
+          int drv = (params == &params1) ? 1 : 0;
+          if (!patched[drv] && params->sides == 0 && params->sectSize == 512) {
+            patched[drv] = 1;
+            int attrAddr = 0xDA38 + drv;
+            int attr = ram[attrAddr];
+            int dphIdx = (attr & 0x30) >> 4;
+            int dphAddr = 0xDA48 + dphIdx * 16;
+            int dpbPtr = ram[dphAddr+10] | (ram[dphAddr+11] << 8);
+            if (dpbPtr >= 0xD000 && dpbPtr < 0xFF00) {
+              /* 200KB DPB: SPT=40 BSH=3 BLM=7 EXM=0 DSM=189 DRM=63
+               * AL0=0xC0 AL1=0x00 CKS=16 OFF=2 */
+              static const byte dpb200[15] = {
+                0x28,0x00, 0x03, 0x07, 0x00, 0xBD,0x00,
+                0x3F,0x00, 0xC0,0x00, 0x10,0x00, 0x02,0x00
+              };
+              memcpy(&ram[dpbPtr], dpb200, 15);
+            }
+          }
+        }
         command = READ_SECT;
         status = 0x02;
       }
@@ -148,13 +177,16 @@ void diskControl (byte value) {
     }
   }
   /* les adresse */
-  else if ((value & 0xf8) == 0xc0) {
+  else if ((value & 0xf0) == 0xc0) {
     if (params->active) {
-      side = (value & 0x02) ? 1 : 0;
+      side = sideSelect;
       if (side > params->sides) {
-        status = 0x10;
-      }
-      else {
+        /* Single-sided drive: no ID fields exist on side 1.
+         * Real hardware times out with Record Not Found.
+         * This is critical for TIKO format detection to
+         * correctly identify single-sided (200KB) disks. */
+        status = 0x10;  /* Record Not Found */
+      } else {
         command = READ_ADDR;
         byteCount = 0;
         status = 0x02;
@@ -164,21 +196,18 @@ void diskControl (byte value) {
     }
   }
   /* les spor -- ikke implementert */
-  else if ((value & 0xf8) == 0xe0) {
+  else if ((value & 0xf0) == 0xe0) {
     status = 0x80;
   }
   /* skriv spor -- kun delvis implementert */
-  else if ((value & 0xf8) == 0xf0) {
+  else if ((value & 0xf0) == 0xf0) {
     if (params->active) {
-      side = (value & 0x02) ? 1 : 0;
-      if (side > params->sides) {
-        status = 0x10;
-      }
-      else {
-        command = WRITE_TRACK;
-        byteCount = 0;
-        status = 0x02;
-      }
+      side = sideSelect;
+      if (side > params->sides)
+        side = 0;  /* single-sided: fall back to side 0 */
+      command = WRITE_TRACK;
+      byteCount = 0;
+      status = 0x02;
     } else {
       status = 0x80;
     }
@@ -255,12 +284,25 @@ byte getDiskData (void) {
         case 0: data = params->realTrack; break;
         case 1: data = side; break;
         case 2: data = 1; break;
-        case 3: switch (params->sectSize) {
-          case 128: data = 0; break;
-          case 256: data = 1; break;
-          case 512: data = 2; break;
-          case 1024: data = 3; break;
-        }
+        case 3:
+          /* Real TIKI-100 200KB disks used mixed density: tracks 0-1
+           * were single-density (128-byte sectors) while tracks 2+
+           * were double-density (512-byte sectors).  The BIOS format
+           * detection compares sector sizes at tracks 0 and 2 to
+           * identify 200KB disks.  Simulate this for single-sided
+           * DD disk images which are stored as uniform 512-byte
+           * sectors. */
+          if (params->sides == 0 && params->sectSize == 512
+              && params->realTrack <= 1) {
+            data = 0;  /* 128-byte (single density boot track) */
+          } else {
+            switch (params->sectSize) {
+              case 128:  data = 0; break;
+              case 256:  data = 1; break;
+              case 512:  data = 2; break;
+              case 1024: data = 3; break;
+            }
+          }
         break;
         case 4: data = 0; break;
         case 5: data = 0;
@@ -297,6 +339,10 @@ void disk1 (tiki_bool status) {
 void diskMotor (tiki_bool status) {
   motOn = status;
   setLights();
+}
+/* sett side fra systemregister (port 0x1C bit 4) */
+void diskSetSide (tiki_bool s) {
+  sideSelect = s ? 1 : 0;
 }
 /* sett alle disklys */
 static void setLights (void) {

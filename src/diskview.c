@@ -84,7 +84,7 @@ static tiki_bool getDiskGeometry (unsigned long size, DiskGeometry *geo) {
       geo->singleByteAlloc = 1;
       return TRUE;
     case 40UL*1*10*512:  /* 200KB */
-      geo->dirOffset = 1 * 1 * 10 * 512;     /* 1 reserved track, 1 side */
+      geo->dirOffset = 2 * 1 * 10 * 512;     /* 2 reserved tracks, 1 side */
       geo->blockSize = 1024;
       geo->maxDir = 64;
       geo->singleByteAlloc = 1;

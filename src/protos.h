@@ -2,7 +2,7 @@
  *
  * Prototyper for funksjoner som kun skal brukes av den systemuavhengige koden. 
  * Resten av prototypene er i TIKI-100_emul.h
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) Asbjï¿½rn Djupdal 2000-2001
  */
 
 #ifndef PROTOS_H
@@ -22,9 +22,9 @@ byte readCtc0 (void);
 byte readCtc1 (void);
 byte readCtc2 (void);
 byte readCtc3 (void);
-/* må kalles regelmessig for å oppdatere tellere og sjekke om interrupt skal genereres */
+/* mï¿½ kalles regelmessig for ï¿½ oppdatere tellere og sjekke om interrupt skal genereres */
 void updateCTC (int cycles);
-/* returnerer antall sykler mellom hver ut puls på gitt ctc-kanal */
+/* returnerer antall sykler mellom hver ut puls pï¿½ gitt ctc-kanal */
 int getCtc (int c);
 
 /*****************************************************************************/
@@ -44,10 +44,12 @@ byte getDiskData (void);
 /* sett stasjon aktiv / inaktiv */
 void disk0 (tiki_bool status);
 void disk1 (tiki_bool status);
-/* skru motor på / av */
+/* skru motor pï¿½ / av */
 void diskMotor (tiki_bool status);
+/* sett side fra systemregister (port 0x1C bit 4) */
+void diskSetSide (tiki_bool s);
 
-/*****************************************************************************/
+/****************************************************************************/
 /* keyboard.c                                                                */
 /*****************************************************************************/
 
@@ -60,7 +62,7 @@ byte readKeyboard (void);
 /* mem.c                                                                     */
 /*****************************************************************************/
 
-/* må kalles før emulering starter */
+/* mï¿½ kalles fï¿½r emulering starter */
 int initMem();
 
 /*****************************************************************************/

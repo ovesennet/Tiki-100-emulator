@@ -70,40 +70,56 @@ Copy `tiki.rom` from the `src/` directory into the `bin/` directory, then run:
 
 The emulator looks for `tiki.rom` in the current working directory. Disk images (`.dsk` files) can be loaded from the **Disk drive** menu.
 
-To enable a debug console with logging output, run with the `-console` flag:
+### Command-line options
 
 ```bash
-./bin/tikiemul.exe -console
+./bin/tikiemul.exe [-diska <path>] [-diskb <path>] [-console]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `-diska <path>` | Load a disk image into drive A: at startup |
+| `-diskb <path>` | Load a disk image into drive B: at startup |
+| `-console` | Enable debug logging to stderr and `tikiemul.log` |
 
 ## Changes from original v1.1.1
 
 ### v1.2.0 (Arctic Retro)
 
-- **Toolbar**: Added a button row above the emulator screen area
-  - Z80 info button — opens a live CPU register viewer window
-  - Limit speed toggle checkbox, synced with the settings dialog
-  - Fullscreen button (F12) — integer-scaled fullscreen with black bars
-  - Screenshot button (F11) — copies the emulator screen to the clipboard
-  - FPS overlay button (F10) — toggles a frames-per-second counter on the display
-- **Fullscreen mode**: True fullscreen with integer scaling, toggle via F12 or toolbar button
-- **Screenshot to clipboard**: Copies the emulator screen area to the clipboard (F11)
-- **FPS overlay**: Real-time frame rate counter drawn on the emulator display (F10)
-- **Z80 information window**: Live-updating window showing all Z80 CPU registers, flags, and interrupt state
-- **Help menu**: Added keyboard shortcuts reference dialog
-- **Version**: Updated to v1.2.0
-- **About dialog**: Updated text to "v1.2.0 by Arctic Retro"
-- **Build system**: Simplified Makefile for Windows/MinGW only (removed Amiga and Unix targets); output to `bin/` directory
-- **Amiga support removed**: Removed Amiga platform backend and all related files (amiga.c, amiga.cd, amiga_icons/, amiga_translations/)
-- **Code fixes**:
-  - Fixed `boolean` type conflict with Windows headers (renamed to `tiki_bool`)
-  - Fixed Norwegian keyboard input (øæå) — corrected key table alignment and VK code mapping for modern Norwegian keyboard layouts
-  - Fixed Norwegian characters in source files (converted from corrupted CP437/CP1252 to UTF-8 with hex escapes where needed)
-  - Fixed toolbar scroll bug — emulator content no longer bleeds into the toolbar area
-  - Fixed keyboard input in fast mode — keys are reliably registered even at high emulation speed
-  - Fixed uninitialized `msg.wParam` return value in `WinMain`
-  - Compiler warnings suppressed for third-party Z80 code (`-Wno-multichar`, `-Wno-overflow`, `-Wno-pointer-to-int-cast`)
-  - Win32 string literals compiled with `-fexec-charset=CP1252` for correct Norwegian character display
+**New features:**
+- **Toolbar**: Button row above the emulator screen area with quick-access tools
+- **Fullscreen mode**: Integer-scaled fullscreen with black bars, toggle via F12 or toolbar
+- **Screenshot to clipboard**: Copies the emulator screen to the clipboard (F11)
+- **FPS overlay**: Real-time frame rate counter drawn on the display (F10)
+- **Z80 information window**: Live-updating CPU register, flags, and interrupt state viewer (toolbar button)
+- **Memory viewer/editor**: Hex/ASCII memory viewer with search, direct editing, and address navigation (toolbar button)
+- **Disk directory viewer**: CP/M directory listing for loaded disk images, with file sizes and disk usage summary (toolbar button)
+- **CPU halt/continue**: Pause and resume Z80 execution from the memory viewer toolbar
+- **Command-line disk loading**: Load disk images at startup with `-diska <path>` and `-diskb <path>`
+- **Debug logging**: Optional `-console` flag enables logging to stderr and `tikiemul.log`
+- **Help menu**: Keyboard shortcuts reference dialog
+
+**FDC emulation fixes (200KB disk support):**
+- **Side select via port 0x1C bit 4**: The system register side select signal was previously ignored by the FDC emulation; READ_ADDR and WRITE_TRACK now use it
+- **READ_ADDR Record Not Found for non-existent sides**: Single-sided disks now correctly return RNF (status 0x10) when the BIOS probes side 1, enabling proper format detection
+- **Mixed-density boot track simulation**: READ_ADDR reports 128-byte sectors on tracks 0–1 for single-sided DD disks, matching real TIKI-100 200KB media which used single-density boot tracks
+- **DPB patching for 200KB disks**: The correct CP/M Disk Parameter Block (SPT=40, BSH=3, OFF=2) is written into Z80 RAM when a 200KB disk is first accessed, since the TIKO BIOS format detection doesn't always update the DPB
+- **Type III command mask fix**: READ_ADDR, READ_TRACK, and WRITE_TRACK command masks changed from `0xF8` to `0xF0` to handle all valid WD FD17xx command variants (including head-load flag)
+
+**Other code fixes:**
+- Fixed `boolean` type conflict with Windows headers (renamed to `tiki_bool`)
+- Fixed Norwegian keyboard input (øæå) — corrected key table alignment and VK code mapping
+- Fixed Norwegian characters in source files (converted to UTF-8 with hex escapes)
+- Fixed toolbar scroll bug — emulator content no longer bleeds into the toolbar area
+- Fixed keyboard input in fast mode — keys are reliably registered at high emulation speed
+- Fixed uninitialized `msg.wParam` return value in `WinMain`
+- Compiler warnings suppressed for third-party Z80 code
+
+**Build/platform changes:**
+- Updated to v1.2.0, about dialog shows "v1.2.0 by Arctic Retro"
+- Simplified Makefile for Windows/MinGW only (removed Amiga and Unix targets); output to `bin/` directory
+- Amiga support removed (amiga.c, amiga.cd, amiga_icons/, amiga_translations/)
+- Win32 string literals compiled with `-fexec-charset=CP1252` for correct Norwegian character display
 
 ## Supported disk image formats
 
