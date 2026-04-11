@@ -122,6 +122,7 @@ static LARGE_INTEGER fpsLastTime;
 static LARGE_INTEGER fpsFreq;
 static WINDOWPLACEMENT wpPrev;
 static LONG savedStyle;
+static HMENU savedMenu;
 static int keyHoldFrames[256]; /* frames remaining for key press in fast mode */
 
 /*****************************************************************************/
@@ -168,7 +169,7 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   LOG_T("Window class registered");
 
   /* create window */
-  hwnd = CreateWindow (szWinName, "TIKI-100 Emulator", WS_OVERLAPPEDWINDOW & ~WS_SIZEBOX & ~WS_MAXIMIZEBOX, CW_USEDEFAULT, 
+  hwnd = CreateWindow (szWinName, "TIKI-100 Emulator v1.2.0", WS_OVERLAPPEDWINDOW & ~WS_SIZEBOX & ~WS_MAXIMIZEBOX, CW_USEDEFAULT, 
                        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, HWND_DESKTOP, NULL, hThisInst, NULL);
   changeRes (MEDRES);
   ShowWindow (hwnd, nWinMode);
@@ -874,9 +875,12 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
           }
 
           /* ta vare på portnavn */
-          strcpy (port1Name, p1);
-          strcpy (port2Name, p2);
-          strcpy (port3Name, p3);
+          strncpy (port1Name, p1, sizeof(port1Name) - 1);
+          port1Name[sizeof(port1Name) - 1] = '\0';
+          strncpy (port2Name, p2, sizeof(port2Name) - 1);
+          port2Name[sizeof(port2Name) - 1] = '\0';
+          strncpy (port3Name, p3, sizeof(port3Name) - 1);
+          port3Name[sizeof(port3Name) - 1] = '\0';
         }
         case 2: /* lukkeknapp for dialogboks, vet ikke makronavnet for den */
         case IDD_AVBRYT:
@@ -991,6 +995,7 @@ static void toggleFullscreen (void) {
         GetMonitorInfo (MonitorFromWindow (hwnd, MONITOR_DEFAULTTOPRIMARY), &mi)) {
       savedStyle = GetWindowLong (hwnd, GWL_STYLE);
       SetWindowLong (hwnd, GWL_STYLE, savedStyle & ~(WS_CAPTION | WS_THICKFRAME | WS_OVERLAPPEDWINDOW));
+      savedMenu = GetMenu (hwnd);
       SetMenu (hwnd, NULL);
       ShowWindow (hwndZ80, SW_HIDE);
       ShowWindow (hwndMem, SW_HIDE);
@@ -1009,7 +1014,8 @@ static void toggleFullscreen (void) {
     }
   } else {
     SetWindowLong (hwnd, GWL_STYLE, savedStyle);
-    SetMenu (hwnd, LoadMenu (appInst, "menu"));
+    SetMenu (hwnd, savedMenu);
+    savedMenu = NULL;
     ShowWindow (hwndZ80, SW_SHOW);
     ShowWindow (hwndMem, SW_SHOW);
     ShowWindow (hwndDsk, SW_SHOW);
@@ -1237,8 +1243,11 @@ void loopEmul (int ms) {
     while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE)) {
       if (msg.message == WM_QUIT) {
         DeleteDC (memdc);
+        memdc = NULL;
         DeleteObject (hbit);
+        hbit = NULL;
         quitEmul();
+        return;  /* stop processing messages after cleanup */
       } else {
         /* TranslateMessage for memview search box (EDIT control needs WM_CHAR) */
         if (memViewIsChild (msg.hwnd))

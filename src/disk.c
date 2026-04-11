@@ -19,6 +19,7 @@ enum diskCommands {
 /* data for en diskettstasjon */
 struct diskParams {
   byte *diskImage;  /* diskettbilde */
+  long diskImageSize; /* størrelse på diskettbilde i bytes */
   tiki_bool active;   /* om det er diskett i stasjonen */
   int tracks;       /* antall spor */
   int sides;        /* antall sider - 1 */
@@ -205,8 +206,10 @@ void newDiskData (byte value) {
   data = value;
   switch (command) {
     case WRITE_SECT:
-      params->diskImage[imageOffset++] = data;
-      if (imageOffset == endOffset) {
+      if (imageOffset >= 0 && imageOffset < params->diskImageSize)
+        params->diskImage[imageOffset] = data;
+      imageOffset++;
+      if (imageOffset >= endOffset) {
         command = NO_COMMAND;
         status = 0x00;
       }
@@ -239,8 +242,10 @@ byte getSector (void) {
 byte getDiskData (void) {
   switch (command) {
     case READ_SECT:
-      data = params->diskImage[imageOffset++];
-      if (imageOffset == endOffset) {
+      data = (imageOffset >= 0 && imageOffset < params->diskImageSize)
+           ? params->diskImage[imageOffset] : 0;
+      imageOffset++;
+      if (imageOffset >= endOffset) {
         command = NO_COMMAND;
         status = 0x00;
       }
@@ -326,6 +331,7 @@ void insertDisk (int drive, byte *dskImg, int trcks, int sds,
 
   dp->active = TRUE;
   dp->diskImage = dskImg;
+  dp->diskImageSize = (long)trcks * sds * sctrs * sctSize;
   dp->tracks = trcks;
   dp->sides = sds - 1;
   dp->sectors = sctrs;

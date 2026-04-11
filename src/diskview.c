@@ -427,6 +427,7 @@ typedef struct {
 
 static void buildLineOffsets (FileViewData *fvd) {
   fvd->lineOffsets = (int *)malloc (sizeof(int) * (fvd->lineCount + 1));
+  if (!fvd->lineOffsets) { fvd->lineCount = 0; return; }
   fvd->lineOffsets[0] = 0;
   int line = 1, i;
   for (i = 0; i < fvd->textLen && line < fvd->lineCount; i++) {

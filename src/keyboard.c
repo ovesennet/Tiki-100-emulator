@@ -34,6 +34,7 @@ void resetKeyboard (void) {
 }
 /* les tastatur-register */
 byte readKeyboard (void) {
+  if (column >= 12) column = 0;
   return testKey (keyMatrix[column++]);
 }
 

@@ -90,19 +90,19 @@ static void recalcCtc (void) {
 }
 /* les ctc0-register */
 byte readCtc0 (void) {
-  return params0.count / params0.in;
+  return params0.in ? params0.count / params0.in : 0;
 }
 /* les ctc1-register */
 byte readCtc1 (void) {
-  return params1.count / params1.in;
+  return params1.in ? params1.count / params1.in : 0;
 }
 /* les ctc2-register */
 byte readCtc2 (void) {
-  return params2.count / params2.in;
+  return params2.in ? params2.count / params2.in : 0;
 }
 /* les ctc3-register */
 byte readCtc3 (void) {
-  return params3.count / params3.in;
+  return params3.in ? params3.count / params3.in : 0;
 }
 /* må kalles regelmessig for å oppdatere tellere og sjekke om interrupt skal genereres */
 void updateCTC (int cycles) {
