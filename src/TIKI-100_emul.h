@@ -183,6 +183,14 @@ void resetEmul (void);
 /* Avslutter emulator */
 void quitEmul (void);
 
+/* Halt / continue CPU execution */
+extern tiki_bool cpuHalted;
+void haltCpu (void);
+void contCpu (void);
+
+/* Platform-specific: runs message pump while CPU is halted */
+void haltMessagePump (void);
+
 #ifdef DEBUG
 /* Åpner avlusnings monitor */
 void trace (void);

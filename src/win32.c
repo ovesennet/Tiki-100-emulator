@@ -591,8 +591,8 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             RegisterClass (&wc);
             z80InfoSetHwndPtr (&hwndZ80Info);
             hwndZ80Info = CreateWindowEx (WS_EX_TOOLWINDOW, "Z80InfoClass", "Z80 Information",
-              WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-              CW_USEDEFAULT, CW_USEDEFAULT, 280, 320,
+              WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
+              CW_USEDEFAULT, CW_USEDEFAULT, 280, 360,
               hwnd, NULL, appInst, NULL);
             ShowWindow (hwndZ80Info, SW_SHOW);
           }
@@ -1025,6 +1025,18 @@ void changePalette (int colornumber, byte red, byte green, byte blue) {
         }
       }
     }
+  }
+}
+/* Message pump while CPU is halted - blocks until cpuHalted is cleared or quit */
+void haltMessagePump (void) {
+  MSG msg;
+  while (cpuHalted) {
+    if (GetMessage (&msg, NULL, 0, 0) <= 0) {
+      quitEmul ();
+      break;
+    }
+    TranslateMessage (&msg);
+    DispatchMessage (&msg);
   }
 }
 /* Kalles periodisk. Lar system kode måle / senke emuleringshastighet

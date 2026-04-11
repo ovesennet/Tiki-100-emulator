@@ -11,8 +11,17 @@
 
 Z80 cpu;
 static tiki_bool done = FALSE;
+tiki_bool cpuHalted = FALSE;
 
 /*****************************************************************************/
+
+void haltCpu (void) {
+  cpuHalted = TRUE;
+}
+
+void contCpu (void) {
+  cpuHalted = FALSE;
+}
 
 /* starter emulering, returnerer når emulering avslutter */
 tiki_bool runEmul (void) {
@@ -22,7 +31,12 @@ tiki_bool runEmul (void) {
   cpu.IPeriod = 4000;
   if (initMem()) {
     ResetZ80 (&cpu);
-    RunZ80 (&cpu);
+    for (;;) {
+      RunZ80 (&cpu);
+      if (done) break;
+      /* CPU is halted - pump messages until resumed or quit */
+      haltMessagePump ();
+    }
     return TRUE;
   }
   return FALSE;
@@ -34,6 +48,7 @@ void PatchZ80 (register Z80 *R) {
 word LoopZ80 (register Z80 *R) {
   static int guiCount = 20;
   if (done) return INT_QUIT;
+  if (cpuHalted) return INT_QUIT;
   updateCTC (cpu.IPeriod);
   if (--guiCount == 0) {
     loopEmul (20);

@@ -12,7 +12,11 @@
 #include <string.h>
 
 extern Z80 cpu;
+extern tiki_bool cpuHalted;
 static HWND *pHwndZ80Info; /* pointer to owner's HWND tracking variable */
+static HWND hwndHaltBtn;
+
+#define IDC_HALT_BTN 200
 
 void z80InfoSetHwndPtr (HWND *p) {
   pHwndZ80Info = p;
@@ -22,21 +26,71 @@ LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
   switch (msg) {
     case WM_CREATE:
       SetTimer (hwnd, 1, 200, NULL); /* refresh 5x/sec */
+      {
+        HINSTANCE hInst = GetModuleHandle (NULL);
+        HFONT guiFont = (HFONT)GetStockObject (DEFAULT_GUI_FONT);
+        hwndHaltBtn = CreateWindow ("BUTTON", "Halt CPU",
+          WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+          10, 10, 100, 26,
+          hwnd, (HMENU)IDC_HALT_BTN, hInst, NULL);
+        SendMessage (hwndHaltBtn, WM_SETFONT, (WPARAM)guiFont, TRUE);
+      }
+      return 0;
+    case WM_COMMAND:
+      if (LOWORD (wParam) == IDC_HALT_BTN) {
+        if (cpuHalted) {
+          contCpu ();
+          SetWindowText (hwndHaltBtn, "Halt CPU");
+        } else {
+          haltCpu ();
+          SetWindowText (hwndHaltBtn, "Cont. CPU");
+        }
+        InvalidateRect (hwnd, NULL, FALSE);
+      }
       return 0;
     case WM_TIMER:
-      InvalidateRect (hwnd, NULL, TRUE);
+      {
+        /* update button text only if state changed */
+        static tiki_bool lastHalted = FALSE;
+        if (cpuHalted != lastHalted) {
+          lastHalted = cpuHalted;
+          SetWindowText (hwndHaltBtn, cpuHalted ? "Cont. CPU" : "Halt CPU");
+        }
+        /* only invalidate the register area below the toolbar */
+        RECT rc;
+        GetClientRect (hwnd, &rc);
+        rc.top = 40;
+        InvalidateRect (hwnd, &rc, FALSE);
+      }
       return 0;
+    case WM_ERASEBKGND:
+      return 1;
     case WM_PAINT:
       {
         PAINTSTRUCT ps;
-        HDC hdc = BeginPaint (hwnd, &ps);
+        HDC hdcScreen = BeginPaint (hwnd, &ps);
+        RECT rcClient;
+        GetClientRect (hwnd, &rcClient);
+        int cw = rcClient.right - rcClient.left;
+        int ch = rcClient.bottom - rcClient.top;
+        HDC hdc = CreateCompatibleDC (hdcScreen);
+        HBITMAP hbmBuf = CreateCompatibleBitmap (hdcScreen, cw, ch);
+        HBITMAP hbmOld = SelectObject (hdc, hbmBuf);
+        FillRect (hdc, &rcClient, GetSysColorBrush (COLOR_3DFACE));
         HFONT font = CreateFont (15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
           ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
           DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
         HFONT oldFont = SelectObject (hdc, font);
         SetBkMode (hdc, TRANSPARENT);
         char buf[512];
-        int y = 10, dy = 18;
+        int y = 46, dy = 18;
+
+        /* CPU status */
+        if (cpuHalted) {
+          SetTextColor (hdc, RGB (200, 0, 0));
+          TextOut (hdc, 130, 16, "HALTED", 6);
+          SetTextColor (hdc, GetSysColor (COLOR_BTNTEXT));
+        }
 
         snprintf (buf, sizeof(buf), "  AF: %04X    AF': %04X", cpu.AF.W, cpu.AF1.W);
         TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
@@ -72,11 +126,17 @@ LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
 
         SelectObject (hdc, oldFont);
         DeleteObject (font);
+        BitBlt (hdcScreen, 0, 0, cw, ch, hdc, 0, 0, SRCCOPY);
+        SelectObject (hdc, hbmOld);
+        DeleteObject (hbmBuf);
+        DeleteDC (hdc);
         EndPaint (hwnd, &ps);
       }
       return 0;
     case WM_DESTROY:
       KillTimer (hwnd, 1);
+      /* if CPU was halted when window closes, resume it */
+      if (cpuHalted) contCpu ();
       if (pHwndZ80Info) *pHwndZ80Info = NULL;
       return 0;
   }
