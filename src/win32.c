@@ -17,6 +17,7 @@
 #include "screenshot.h"
 #include "z80info.h"
 #include "memview.h"
+#include "diskview.h"
 
 #define ERROR_CAPTION     "TIKI-100_emul error"
 #define STATUSBAR_HEIGHT  19
@@ -106,6 +107,8 @@ static HWND hwndZ80;
 static HWND hwndZ80Info;
 static HWND hwndMem;
 static HWND hwndMemInfo;
+static HWND hwndDsk;
+static HWND hwndDskInfo;
 static HWND hwndSpeedToggle;
 static HWND hwndFullscreen;
 static HWND hwndScreenshot;
@@ -259,10 +262,15 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
           32, 3, 24, 24,
           hwnd, (HMENU)IDM_MEMVIEW, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+        /* create disk viewer button (owner-drawn icon) */
+        hwndDsk = CreateWindow ("BUTTON", NULL,
+          WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+          60, 3, 24, 24,
+          hwnd, (HMENU)IDM_DISKVIEW, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create fullscreen button (owner-drawn icon) */
         hwndFullscreen = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          60, 3, 24, 24,
+          88, 3, 24, 24,
           hwnd, (HMENU)IDM_FULLSCREEN, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create tooltip for fullscreen button */
         hwndTooltip = CreateWindowEx (0, TOOLTIPS_CLASS, NULL,
@@ -281,7 +289,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create screenshot button (owner-drawn icon) */
         hwndScreenshot = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          88, 3, 24, 24,
+          116, 3, 24, 24,
           hwnd, (HMENU)IDM_SCREENSHOT, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* tooltip for screenshot button */
         {
@@ -296,12 +304,12 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create FPS toggle button (owner-drawn icon) */
         hwndFps = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          116, 3, 24, 24,
+          144, 3, 24, 24,
           hwnd, (HMENU)IDM_FPS, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create speed toggle button */
         hwndSpeedToggle = CreateWindow ("BUTTON", "Limit speed",
           WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-          146, 6, 100, 18,
+          174, 6, 100, 18,
           hwnd, (HMENU)IDM_SPEED_TOGGLE, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         SendMessage (hwndSpeedToggle, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
         SendMessage (hwndSpeedToggle, BM_SETCHECK, BST_CHECKED, 0);
@@ -333,6 +341,16 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           ti.hwnd = hwnd;
           ti.uId = (UINT_PTR)hwndMem;
           ti.lpszText = "Memory viewer";
+          SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        }
+        /* tooltip for disk viewer button */
+        {
+          TOOLINFO ti = {0};
+          ti.cbSize = sizeof (TOOLINFO);
+          ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
+          ti.hwnd = hwnd;
+          ti.uId = (UINT_PTR)hwndDsk;
+          ti.lpszText = "Disk directory viewer";
           SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
         }
         /* init FPS counter */
@@ -437,6 +455,20 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
           HFONT oldFont = SelectObject (dis->hDC, font);
           DrawText (dis->hDC, "FPS", 3, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+          SelectObject (dis->hDC, oldFont);
+          DeleteObject (font);
+        }
+        if (dis->CtlID == IDM_DISKVIEW) {
+          RECT rc = dis->rcItem;
+          UINT edge = (dis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0;
+          DrawFrameControl (dis->hDC, &rc, DFC_BUTTON, DFCS_BUTTONPUSH | edge);
+          SetBkMode (dis->hDC, TRANSPARENT);
+          SetTextColor (dis->hDC, GetSysColor (COLOR_BTNTEXT));
+          HFONT font = CreateFont (11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
+          HFONT oldFont = SelectObject (dis->hDC, font);
+          DrawText (dis->hDC, "DSK", 3, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
           SelectObject (dis->hDC, oldFont);
           DeleteObject (font);
         }
@@ -612,10 +644,12 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         case IDM_FJERN_A:
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_A, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (0);
+          diskViewSetDisk (0, NULL, 0);
           break;
         case IDM_FJERN_B:
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_B, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (1);
+          diskViewSetDisk (1, NULL, 0);
           break;
         case IDM_Z80INFO:
           if (hwndZ80Info && IsWindow (hwndZ80Info)) {
@@ -659,6 +693,28 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                 hwnd, NULL, appInst, NULL);
             }
             ShowWindow (hwndMemInfo, SW_SHOW);
+          }
+          break;
+        case IDM_DISKVIEW:
+          if (hwndDskInfo && IsWindow (hwndDskInfo)) {
+            SetForegroundWindow (hwndDskInfo);
+          } else {
+            WNDCLASS wc = {0};
+            wc.lpfnWndProc = DiskViewWndProc;
+            wc.hInstance = appInst;
+            wc.hbrBackground = (HBRUSH)(COLOR_3DFACE + 1);
+            wc.lpszClassName = "DiskViewClass";
+            wc.hCursor = LoadCursor (NULL, IDC_ARROW);
+            RegisterClass (&wc);
+            diskViewSetHwndPtr (&hwndDskInfo);
+            /* provide current disk data */
+            diskViewSetDisk (0, dsk[0], fileSize[0]);
+            diskViewSetDisk (1, dsk[1], fileSize[1]);
+            hwndDskInfo = CreateWindowEx (WS_EX_TOOLWINDOW, "DiskViewClass", "Disk directory",
+              WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VSCROLL,
+              CW_USEDEFAULT, CW_USEDEFAULT, 460, 420,
+              hwnd, NULL, appInst, NULL);
+            ShowWindow (hwndDskInfo, SW_SHOW);
           }
           break;
         case IDM_SPEED_TOGGLE:
@@ -858,24 +914,28 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 40, 1, 18, 128);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x1x18x128 from %s", 'A' + drive, path);
       return TRUE;
     case 40*1*10*512:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 40, 1, 10, 512);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x1x10x512 from %s", 'A' + drive, path);
       return TRUE;
     case 40*2*10*512:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 40, 2, 10, 512);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x2x10x512 from %s", 'A' + drive, path);
       return TRUE;
     case 80*2*10*512:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 80, 2, 10, 512);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 80x2x10x512 from %s", 'A' + drive, path);
       return TRUE;
     default:
@@ -934,6 +994,7 @@ static void toggleFullscreen (void) {
       SetMenu (hwnd, NULL);
       ShowWindow (hwndZ80, SW_HIDE);
       ShowWindow (hwndMem, SW_HIDE);
+      ShowWindow (hwndDsk, SW_HIDE);
       ShowWindow (hwndSpeedToggle, SW_HIDE);
       ShowWindow (hwndFullscreen, SW_HIDE);
       ShowWindow (hwndScreenshot, SW_HIDE);
@@ -951,6 +1012,7 @@ static void toggleFullscreen (void) {
     SetMenu (hwnd, LoadMenu (appInst, "menu"));
     ShowWindow (hwndZ80, SW_SHOW);
     ShowWindow (hwndMem, SW_SHOW);
+    ShowWindow (hwndDsk, SW_SHOW);
     ShowWindow (hwndSpeedToggle, SW_SHOW);
     ShowWindow (hwndFullscreen, SW_SHOW);
     ShowWindow (hwndScreenshot, SW_SHOW);

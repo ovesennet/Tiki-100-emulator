@@ -47,3 +47,4 @@
 #define IDM_FPS             34
 #define IDM_Z80INFO         35
 #define IDM_MEMVIEW         36
+#define IDM_DISKVIEW        37
