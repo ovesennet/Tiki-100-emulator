@@ -18,54 +18,62 @@ LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32
 # Rules
 #------------------------------------------------------------------------------
 
-OBJECTS = TIKI-100_emul.o mem.o video.o sound.o ctc.o keyboard.o disk.o serial.o parallel.o Z80.o Debug.o log.o win32.o win32_res.res
+BINDIR = ../bin
 
-tikiemul.exe : $(OBJECTS) Makefile
+OBJECTS = $(BINDIR)/TIKI-100_emul.o $(BINDIR)/mem.o $(BINDIR)/video.o $(BINDIR)/sound.o $(BINDIR)/ctc.o $(BINDIR)/keyboard.o $(BINDIR)/disk.o $(BINDIR)/serial.o $(BINDIR)/parallel.o $(BINDIR)/Z80.o $(BINDIR)/Debug.o $(BINDIR)/log.o $(BINDIR)/screenshot.o $(BINDIR)/win32.o $(BINDIR)/win32_res.res
+
+$(BINDIR)/tikiemul.exe : $(OBJECTS) Makefile | $(BINDIR)
 	$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
 
-TIKI-100_emul.o : TIKI-100_emul.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR):
+	mkdir -p $(BINDIR)
 
-mem.o : mem.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/TIKI-100_emul.o : TIKI-100_emul.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-video.o : video.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/mem.o : mem.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-sound.o : sound.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/video.o : video.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-ctc.o : ctc.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/sound.o : sound.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-keyboard.o : keyboard.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/ctc.o : ctc.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-disk.o : disk.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/keyboard.o : keyboard.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-serial.o : serial.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/disk.o : disk.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-parallel.o : parallel.c TIKI-100_emul.h protos.h Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/serial.o : serial.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-Z80.o : Z80.c Z80.h Codes.h CodesED.h CodesCB.h CodesXX.h Tables.h CodesXCB.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/parallel.o : parallel.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-Debug.o : Debug.c Z80.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/Z80.o : Z80.c Z80.h Codes.h CodesED.h CodesCB.h CodesXX.h Tables.h CodesXCB.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-log.o : log.c log.h Makefile
-	$(CC) -c $< $(CFLAGS)
+$(BINDIR)/Debug.o : Debug.c Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h Makefile
-	$(CC) -c $< $(CFLAGS) -fexec-charset=CP1252
+$(BINDIR)/log.o : log.c log.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-win32_res.res : win32_res.rc win32_res.h TIKI-100_emul.h Z80.h Makefile
+$(BINDIR)/screenshot.o : screenshot.c screenshot.h log.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+$(BINDIR)/win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h screenshot.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS) -fexec-charset=CP1252
+
+$(BINDIR)/win32_res.res : win32_res.rc win32_res.h win32.ico TIKI-100_emul.h Z80.h Makefile | $(BINDIR)
 	windres $< $(Z80_DEBUGGER) -O coff -o $@ --codepage=65001
 
 .PHONY : clean
 clean :
-	rm -f tikiemul.exe *.res *.o
+	rm -f $(BINDIR)/tikiemul.exe $(BINDIR)/*.res $(BINDIR)/*.o
 

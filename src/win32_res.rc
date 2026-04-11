@@ -28,6 +28,9 @@ menu MENU {
       MENUITEM "&Monitor...", IDM_MONITOR
    }
 #endif
+   POPUP "&Help" {
+      MENUITEM "&Keyboard shortcuts...", IDM_HELP
+   }
 }
 
 dialog DIALOG DISCARDABLE  30, 30, 269, 137
@@ -54,13 +57,6 @@ CAPTION "TIKI-100_emul settings"
     AUTOCHECKBOX    "Serial port P1", IDD_P1, 193, 45, 63, 8
     AUTOCHECKBOX    "Serial port P2", IDD_P2, 193, 64, 63, 8
     AUTOCHECKBOX    "Parallel port P3", IDD_P3, 193, 83, 68, 8
-}
-
-testdialog DIALOG DISCARDABLE 30, 30, 160, 60
-STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "Test Dialog"
-{
-    DEFPUSHBUTTON "OK", IDD_TESTDLG_OK, 55, 36, 50, 14
 }
 
 icon ICON win32.ico

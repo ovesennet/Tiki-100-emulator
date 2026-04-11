@@ -1,7 +1,7 @@
 /* mem.c V1.1.0
  *
- * Tar seg av minne-håndtering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Tar seg av minne-hÃ¥ndtering for TIKI-100_emul
+ * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -14,14 +14,14 @@
 
 byte ram[64 * 1024];    /* hoved minne */
 extern byte gfxRam[];   /* grafikk minne */
-byte rom[16 * 1024];    /* monitor eprom, vanligvis bare 8k men støtter 16k */
+byte rom[16 * 1024];    /* monitor eprom, vanligvis bare 8k men stÃ¸tter 16k */
 
 static tiki_bool gfxIn;   /* TRUE hvis grafikkram er synlig for prosessor */
 static tiki_bool romIn;   /* TRUE hvis rom er synlig for prosessor */
 
 /*****************************************************************************/
 
-/* må kalles før emulering starter */
+/* mÃ¥ kalles fÃ¸r emulering starter */
 int initMem() {
   FILE *fp;
 

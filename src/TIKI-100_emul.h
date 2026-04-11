@@ -35,7 +35,7 @@ struct serParams {
   int parity;       /* paritet, en av de angitt over */
   int stopBits;     /* antall stopbits, en av de angitt over */
   int baud;         /* baud */
-  /* f�lgende er kun for bruk i serial.c: */
+  /* følgende er kun for bruk i serial.c: */
   int regPtr;
   int clkDiv;
   tiki_bool exi;
@@ -97,11 +97,11 @@ struct serParams {
 #define KEY_NUM9        0x80 | 0x39
 #define KEY_NUMDOT      0x80 | 0x2e
 
-/* M� implementeres av system-koden
+/* Må implementeres av system-koden
  **********************************/
 
-/* Forandre oppl�sning.
- * M� samtidig fylle alle pixler med farge 0
+/* Forandre oppløsning.
+ * Må samtidig fylle alle pixler med farge 0
  */
 void changeRes (int newRes);
 
@@ -109,17 +109,17 @@ void changeRes (int newRes);
 void plotPixel (int x, int y, int color);
 
 /* Scroll skjerm 'distance' linjer oppover
- * 'distance' kan v�re b�de positiv og negativ
+ * 'distance' kan være både positiv og negativ
  */
 void scrollScreen (int distance);
 
 /* Ny farge, gitt pallettnummer og intensitet 0-255.
- * M� oppdatere alle pixler med dette pallettnummeret til ny farge
+ * Må oppdatere alle pixler med dette pallettnummeret til ny farge
  */
 void changePalette (int colornumber, byte red, byte green, byte blue);
 
-/* Kalles periodisk. Lar system kode m�le / senke emuleringshastighet
- * Kan ogs� brukes til sjekk av brukeraktivitet / serieporter
+/* Kalles periodisk. Lar system kode måle / senke emuleringshastighet
+ * Kan også brukes til sjekk av brukeraktivitet / serieporter
  * ms er antall "emulerte" millisekunder siden forrige gang loopEmul ble kalt
  */
 void loopEmul (int ms);
@@ -160,7 +160,7 @@ void printChar (byte value);
 /* Kan kalles av system-koden
  ****************************/
 
-/* Starter emulering, returnerer n�r emulering avsluttes
+/* Starter emulering, returnerer når emulering avsluttes
  * Returverdi ved feil: FALSE
  * Ellers returneres TRUE (etter at quitEmul() er kalt)
  */
@@ -184,11 +184,11 @@ void resetEmul (void);
 void quitEmul (void);
 
 #ifdef DEBUG
-/* �pner avlusnings monitor */
+/* Åpner avlusnings monitor */
 void trace (void);
 #endif
 
-/* Setter b�yle ST 28 b */
+/* Setter bøyle ST 28 b */
 void setST28b (tiki_bool status);
 
 /* Nytt serietegn mottatt

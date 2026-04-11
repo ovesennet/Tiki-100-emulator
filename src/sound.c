@@ -1,7 +1,7 @@
 /* sound.c V1.1.0
  *
  * AY-3-8912 emulering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"

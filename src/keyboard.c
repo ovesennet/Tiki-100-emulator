@@ -1,7 +1,7 @@
 /* keyboard.c V1.1.0
  *
  * Tastatur emulering for TIKI-100_emul
- * Copyright (C) Asbj�rn Djupdal 2000-2001
+ * Copyright (C) Asbjørn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"

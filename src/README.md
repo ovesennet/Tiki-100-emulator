@@ -34,15 +34,25 @@ The resulting `tikiemul.exe` should be run from the directory containing the ROM
 ### v1.2.0 (Arctic Retro)
 
 - **Toolbar**: Added a button row above the emulator screen area
-  - "Test" button that opens a test dialog
-  - "Senk hastighet" (reduce speed) toggle checkbox, synced with the settings dialog
+  - Z80 info button — opens a live CPU register viewer window
+  - Limit speed toggle checkbox, synced with the settings dialog
+  - Fullscreen button (F12) — integer-scaled fullscreen with black bars
+  - Screenshot button (F11) — copies the emulator screen to the clipboard
+  - FPS overlay button (F10) — toggles a frames-per-second counter on the display
+- **Fullscreen mode**: True fullscreen with integer scaling, toggle via F12 or toolbar button
+- **Screenshot to clipboard**: Copies the emulator screen area to the clipboard (F11)
+- **FPS overlay**: Real-time frame rate counter drawn on the emulator display (F10)
+- **Z80 information window**: Live-updating window showing all Z80 CPU registers, flags, and interrupt state
+- **Help menu**: Added keyboard shortcuts reference dialog
 - **Version**: Updated to v1.2.0
 - **About dialog**: Updated text to "v1.2.0 by Arctic Retro"
-- **Build system**: Simplified Makefile for Windows/MinGW only (removed Amiga and Unix targets)
+- **Build system**: Simplified Makefile for Windows/MinGW only (removed Amiga and Unix targets); output to `bin/` directory
 - **Code fixes**:
   - Fixed `boolean` type conflict with Windows headers (renamed to `tiki_bool`)
   - Fixed Norwegian keyboard input (øæå) — corrected key table alignment and VK code mapping for modern Norwegian keyboard layouts
   - Fixed Norwegian characters in source files (converted from corrupted CP437/CP1252 to UTF-8 with hex escapes where needed)
+  - Fixed toolbar scroll bug — emulator content no longer bleeds into the toolbar area
+  - Fixed keyboard input in fast mode — keys are reliably registered even at high emulation speed
   - Fixed uninitialized `msg.wParam` return value in `WinMain`
   - Compiler warnings suppressed for third-party Z80 code (`-Wno-multichar`, `-Wno-overflow`, `-Wno-pointer-to-int-cast`)
   - Win32 string literals compiled with `-fexec-charset=CP1252` for correct Norwegian character display

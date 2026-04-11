@@ -1,7 +1,7 @@
 /* ctc.c V1.1.0
  *
  * Z80 CTC emulering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -10,7 +10,7 @@
 /* data for en seriekanal */
 struct ctcParams {
   tiki_bool interrupt;   /* om interrupt skal genereres */
-  tiki_bool enable;      /* om teller av på eller av */
+  tiki_bool enable;      /* om teller av pÃ¥ eller av */
   int in;              /* inngang - ant. sykler mellom hver inn-puls */
   int out;             /* utgang - ant. sykler mellom hver ut-puls */
   tiki_bool use4MHz;     /* om klokke skal brukes i stedet for inngang */
@@ -104,7 +104,7 @@ byte readCtc2 (void) {
 byte readCtc3 (void) {
   return params3.count / params3.in;
 }
-/* må kalles regelmessig for å oppdatere tellere og sjekke om interrupt skal genereres */
+/* mÃ¥ kalles regelmessig for Ã¥ oppdatere tellere og sjekke om interrupt skal genereres */
 void updateCTC (int cycles) {
   if (params0.enable) params0.count -= cycles;
   if (params1.enable) params1.count -= cycles;
@@ -136,7 +136,7 @@ void updateCTC (int cycles) {
     }
   }
 }
-/* returnerer antall sykler mellom hver ut puls på gitt ctc-kanal */
+/* returnerer antall sykler mellom hver ut puls pÃ¥ gitt ctc-kanal */
 int getCtc (int c) {
   switch (c) {
     case 0:  return params0.out;

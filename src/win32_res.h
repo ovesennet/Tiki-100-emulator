@@ -1,7 +1,7 @@
 /* win32_res.h V1.1.0
  *
  * Konstanter for win32 ressurser
- * Copyright (C) Asbj�rn Djupdal 2000-2001
+ * Copyright (C) Asbjørn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -41,3 +41,8 @@
 #define IDD_TESTDLG_OK     28
 #define IDC_TOOLBAR         29
 #define IDM_SPEED_TOGGLE    30
+#define IDM_FULLSCREEN      31
+#define IDM_SCREENSHOT      32
+#define IDM_HELP            33
+#define IDM_FPS             34
+#define IDM_Z80INFO         35

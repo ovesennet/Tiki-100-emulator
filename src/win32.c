@@ -14,6 +14,7 @@
 #include <commctrl.h>
 
 #include "log.h"
+#include "screenshot.h"
 
 #define ERROR_CAPTION     "TIKI-100_emul error"
 #define STATUSBAR_HEIGHT  19
@@ -23,13 +24,14 @@
 int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, int nWinMode);
 static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static BOOL CALLBACK DialogFunc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-static BOOL CALLBACK TestDialogFunc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+static LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 static void update (int x, int y, int w, int h);
 static void draw3dBox (int x, int y, int w, int h);
 static void getDiskImage (int drive);
 static void saveDiskImage (int drive);
 static void setParam (HANDLE portHandle, struct serParams *params);
+static void toggleFullscreen (void);
 
 /* variabler */
 
@@ -98,8 +100,22 @@ static HANDLE port3;
 static char port1Name[256] = "COM1";
 static char port2Name[256] = "COM2";
 static char port3Name[256] = "LPT1";
-static HWND hwndToolbar;
+static HWND hwndZ80;
+static HWND hwndZ80Info;
 static HWND hwndSpeedToggle;
+static HWND hwndFullscreen;
+static HWND hwndScreenshot;
+static HWND hwndFps;
+static HWND hwndTooltip;
+static tiki_bool isFullscreen = FALSE;
+static tiki_bool showFps = FALSE;
+static int currentFps = 0;
+static int frameCount = 0;
+static LARGE_INTEGER fpsLastTime;
+static LARGE_INTEGER fpsFreq;
+static WINDOWPLACEMENT wpPrev;
+static LONG savedStyle;
+static int keyHoldFrames[256]; /* frames remaining for key press in fast mode */
 
 /*****************************************************************************/
 
@@ -152,6 +168,7 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
 
   /* initialiser arrays */
   memset (pressedKeys, 1, 256);
+  memset (keyHoldFrames, 0, sizeof(keyHoldFrames));
   memset (screen, 0, 1024*256);
 
   /* finn katalog */
@@ -190,28 +207,235 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
         PatBlt (memdc, 0, 0, 1024, TOOLBAR_HEIGHT, PATCOPY);
         ReleaseDC (hwnd, hdc);
-        /* create toolbar button */
-        hwndToolbar = CreateWindow ("BUTTON", "Test",
-          WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-          4, 3, 60, 24,
-          hwnd, (HMENU)IDM_TESTDLG, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
-        SendMessage (hwndToolbar, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
+        /* create Z80 info button (owner-drawn icon) */
+        hwndZ80 = CreateWindow ("BUTTON", NULL,
+          WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+          4, 3, 24, 24,
+          hwnd, (HMENU)IDM_Z80INFO, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+        /* create fullscreen button (owner-drawn icon) */
+        hwndFullscreen = CreateWindow ("BUTTON", NULL,
+          WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+          32, 3, 24, 24,
+          hwnd, (HMENU)IDM_FULLSCREEN, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+        /* create tooltip for fullscreen button */
+        hwndTooltip = CreateWindowEx (0, TOOLTIPS_CLASS, NULL,
+          WS_POPUP | TTS_ALWAYSTIP,
+          CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+          hwnd, NULL, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+        {
+          TOOLINFO ti = {0};
+          ti.cbSize = sizeof (TOOLINFO);
+          ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
+          ti.hwnd = hwnd;
+          ti.uId = (UINT_PTR)hwndFullscreen;
+          ti.lpszText = "Full screen (F12) - ESC to exit";
+          SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        }
+        /* create screenshot button (owner-drawn icon) */
+        hwndScreenshot = CreateWindow ("BUTTON", NULL,
+          WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+          60, 3, 24, 24,
+          hwnd, (HMENU)IDM_SCREENSHOT, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+        /* tooltip for screenshot button */
+        {
+          TOOLINFO ti = {0};
+          ti.cbSize = sizeof (TOOLINFO);
+          ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
+          ti.hwnd = hwnd;
+          ti.uId = (UINT_PTR)hwndScreenshot;
+          ti.lpszText = "Copy screenshot to clipboard (F11)";
+          SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        }
+        /* create FPS toggle button (owner-drawn icon) */
+        hwndFps = CreateWindow ("BUTTON", NULL,
+          WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+          88, 3, 24, 24,
+          hwnd, (HMENU)IDM_FPS, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create speed toggle button */
         hwndSpeedToggle = CreateWindow ("BUTTON", "Limit speed",
           WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-          70, 6, 100, 18,
+          118, 6, 100, 18,
           hwnd, (HMENU)IDM_SPEED_TOGGLE, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         SendMessage (hwndSpeedToggle, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
         SendMessage (hwndSpeedToggle, BM_SETCHECK, BST_CHECKED, 0);
+        /* tooltip for FPS button */
+        {
+          TOOLINFO ti = {0};
+          ti.cbSize = sizeof (TOOLINFO);
+          ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
+          ti.hwnd = hwnd;
+          ti.uId = (UINT_PTR)hwndFps;
+          ti.lpszText = "Toggle FPS display (F10)";
+          SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        }
+        /* tooltip for Z80 info button */
+        {
+          TOOLINFO ti = {0};
+          ti.cbSize = sizeof (TOOLINFO);
+          ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
+          ti.hwnd = hwnd;
+          ti.uId = (UINT_PTR)hwndZ80;
+          ti.lpszText = "Z80 CPU information";
+          SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        }
+        /* init FPS counter */
+        QueryPerformanceFrequency (&fpsFreq);
+        QueryPerformanceCounter (&fpsLastTime);
+        wpPrev.length = sizeof (WINDOWPLACEMENT);
         LOG_T("Window created, memdc initialized");
+      }
+      break;
+    case WM_DRAWITEM:
+      {
+        LPDRAWITEMSTRUCT dis = (LPDRAWITEMSTRUCT)lParam;
+        if (dis->CtlID == IDM_Z80INFO) {
+          RECT rc = dis->rcItem;
+          UINT edge = (dis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0;
+          DrawFrameControl (dis->hDC, &rc, DFC_BUTTON, DFCS_BUTTONPUSH | edge);
+          SetBkMode (dis->hDC, TRANSPARENT);
+          SetTextColor (dis->hDC, GetSysColor (COLOR_BTNTEXT));
+          HFONT font = CreateFont (12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
+          HFONT oldFont = SelectObject (dis->hDC, font);
+          DrawText (dis->hDC, "Z80", 3, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+          SelectObject (dis->hDC, oldFont);
+          DeleteObject (font);
+        }
+        if (dis->CtlID == IDM_FULLSCREEN) {
+          RECT rc = dis->rcItem;
+          UINT edge = (dis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0;
+          DrawFrameControl (dis->hDC, &rc, DFC_BUTTON, DFCS_BUTTONPUSH | edge);
+          /* draw fullscreen icon: a rectangle with arrows pointing to corners */
+          int cx = (rc.left + rc.right) / 2;
+          int cy = (rc.top + rc.bottom) / 2;
+          int s = 6; /* half-size of the icon */
+          HPEN pen = CreatePen (PS_SOLID, 2, GetSysColor (COLOR_BTNTEXT));
+          HPEN oldPen = SelectObject (dis->hDC, pen);
+          /* outer rectangle */
+          MoveToEx (dis->hDC, cx - s, cy - s, NULL); LineTo (dis->hDC, cx + s, cy - s);
+          LineTo (dis->hDC, cx + s, cy + s); LineTo (dis->hDC, cx - s, cy + s);
+          LineTo (dis->hDC, cx - s, cy - s);
+          /* top-left corner arrow */
+          MoveToEx (dis->hDC, cx - s, cy - s + 4, NULL); LineTo (dis->hDC, cx - s, cy - s);
+          LineTo (dis->hDC, cx - s + 4, cy - s);
+          /* top-right corner arrow */
+          MoveToEx (dis->hDC, cx + s - 4, cy - s, NULL); LineTo (dis->hDC, cx + s, cy - s);
+          LineTo (dis->hDC, cx + s, cy - s + 4);
+          /* bottom-right corner arrow */
+          MoveToEx (dis->hDC, cx + s, cy + s - 4, NULL); LineTo (dis->hDC, cx + s, cy + s);
+          LineTo (dis->hDC, cx + s - 4, cy + s);
+          /* bottom-left corner arrow */
+          MoveToEx (dis->hDC, cx - s + 4, cy + s, NULL); LineTo (dis->hDC, cx - s, cy + s);
+          LineTo (dis->hDC, cx - s, cy + s - 4);
+          SelectObject (dis->hDC, oldPen);
+          DeleteObject (pen);
+        }
+        if (dis->CtlID == IDM_SCREENSHOT) {
+          RECT rc = dis->rcItem;
+          UINT edge = (dis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0;
+          DrawFrameControl (dis->hDC, &rc, DFC_BUTTON, DFCS_BUTTONPUSH | edge);
+          /* draw camera icon */
+          int cx = (rc.left + rc.right) / 2;
+          int cy = (rc.top + rc.bottom) / 2;
+          HPEN pen = CreatePen (PS_SOLID, 1, GetSysColor (COLOR_BTNTEXT));
+          HBRUSH brush = CreateSolidBrush (GetSysColor (COLOR_BTNTEXT));
+          HPEN oldPen = SelectObject (dis->hDC, pen);
+          HBRUSH oldBrush = SelectObject (dis->hDC, GetStockObject (NULL_BRUSH));
+          /* camera body */
+          Rectangle (dis->hDC, cx - 7, cy - 3, cx + 7, cy + 6);
+          /* lens (circle) */
+          Ellipse (dis->hDC, cx - 3, cy - 1, cx + 3, cy + 5);
+          /* viewfinder bump */
+          SelectObject (dis->hDC, brush);
+          Rectangle (dis->hDC, cx - 2, cy - 5, cx + 2, cy - 3);
+          SelectObject (dis->hDC, oldBrush);
+          SelectObject (dis->hDC, oldPen);
+          DeleteObject (pen);
+          DeleteObject (brush);
+        }
+        if (dis->CtlID == IDM_FPS) {
+          RECT rc = dis->rcItem;
+          UINT edge = (dis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0;
+          DrawFrameControl (dis->hDC, &rc, DFC_BUTTON, DFCS_BUTTONPUSH | edge);
+          /* draw "FPS" text as icon */
+          SetBkMode (dis->hDC, TRANSPARENT);
+          SetTextColor (dis->hDC, showFps ? RGB(0, 180, 0) : GetSysColor (COLOR_BTNTEXT));
+          HFONT font = CreateFont (11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
+          HFONT oldFont = SelectObject (dis->hDC, font);
+          DrawText (dis->hDC, "FPS", 3, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+          SelectObject (dis->hDC, oldFont);
+          DeleteObject (font);
+        }
       }
       break;
     case WM_PAINT:
       { /* kopier fra memdc til hdc */
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint (hwnd, &ps);
-        BitBlt (hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, 
-                ps.rcPaint.bottom - ps.rcPaint.top, memdc, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+        if (isFullscreen) {
+          /* scale emulator area to fill screen, centered with black bars */
+          RECT cr;
+          GetClientRect (hwnd, &cr);
+          int screenW = cr.right - cr.left;
+          int screenH = cr.bottom - cr.top;
+          int scaleW = screenW / width;
+          int scaleH = screenH / height;
+          int scale = (scaleW < scaleH) ? scaleW : scaleH;
+          if (scale < 1) scale = 1;
+          int dstW = width * scale;
+          int dstH = height * scale;
+          int dstX = (screenW - dstW) / 2;
+          int dstY = (screenH - dstH) / 2;
+          /* black bars */
+          if (dstY > 0) {
+            RECT top = {0, 0, screenW, dstY};
+            FillRect (hdc, &top, (HBRUSH)GetStockObject (BLACK_BRUSH));
+            RECT bot = {0, dstY + dstH, screenW, screenH};
+            FillRect (hdc, &bot, (HBRUSH)GetStockObject (BLACK_BRUSH));
+          }
+          if (dstX > 0) {
+            RECT lft = {0, dstY, dstX, dstY + dstH};
+            FillRect (hdc, &lft, (HBRUSH)GetStockObject (BLACK_BRUSH));
+            RECT rgt = {dstX + dstW, dstY, screenW, dstY + dstH};
+            FillRect (hdc, &rgt, (HBRUSH)GetStockObject (BLACK_BRUSH));
+          }
+          SetStretchBltMode (hdc, COLORONCOLOR);
+          StretchBlt (hdc, dstX, dstY, dstW, dstH,
+                      memdc, 0, TOOLBAR_HEIGHT, width, height, SRCCOPY);
+        } else {
+          BitBlt (hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, 
+                  ps.rcPaint.bottom - ps.rcPaint.top, memdc, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+        }
+        /* FPS overlay */
+        if (showFps) {
+          char fpsText[16];
+          snprintf (fpsText, sizeof (fpsText), "FPS: %d", currentFps);
+          SetBkMode (hdc, TRANSPARENT);
+          SetTextColor (hdc, RGB (0, 255, 0));
+          HFONT font = CreateFont (16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
+          HFONT oldFont = SelectObject (hdc, font);
+          if (isFullscreen) {
+            RECT cr;
+            GetClientRect (hwnd, &cr);
+            int screenW = cr.right - cr.left;
+            int scaleW = screenW / width;
+            int scaleH = (cr.bottom - cr.top) / height;
+            int scale = (scaleW < scaleH) ? scaleW : scaleH;
+            if (scale < 1) scale = 1;
+            int dstW = width * scale;
+            int dstX = (screenW - dstW) / 2;
+            TextOut (hdc, dstX + dstW - 80, 5, fpsText, strlen (fpsText));
+          } else {
+            TextOut (hdc, width - 80, TOOLBAR_HEIGHT + 5, fpsText, strlen (fpsText));
+          }
+          SelectObject (hdc, oldFont);
+          DeleteObject (font);
+        }
         EndPaint (hwnd, &ps);
       }
       break;
@@ -236,12 +460,36 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       PostQuitMessage (0);
       break;
     case WM_KEYDOWN:
-      pressedKeys[keyTable[(byte)wParam]] = 0;
+      if (wParam == VK_ESCAPE && isFullscreen) {
+        toggleFullscreen();
+      } else if (wParam == VK_F12) {
+        toggleFullscreen();
+      } else if (wParam == VK_F11) {
+        copyScreenshot (hwnd, memdc, 0, TOOLBAR_HEIGHT, width, height);
+      } else {
+        pressedKeys[keyTable[(byte)wParam]] = 0;
+      }
       break;
+    case WM_SYSKEYDOWN:
+      if (wParam == VK_F10) {
+        showFps = !showFps;
+        if (showFps) QueryPerformanceCounter (&fpsLastTime);
+        frameCount = 0;
+        currentFps = 0;
+        InvalidateRect (hwndFps, NULL, FALSE);
+        InvalidateRect (hwnd, NULL, FALSE);
+        LOG_I("FPS display %s", showFps ? "enabled" : "disabled");
+        return 0; /* prevent menu activation */
+      }
+      return DefWindowProc (hwnd, msg, wParam, lParam);
     case WM_KEYUP:
       pressedKeys[keyTable[(byte)wParam]] = 1;
       break;
     case WM_COMMAND:
+      /* return focus to main window after toolbar button clicks */
+      if (HIWORD (wParam) == BN_CLICKED && (HWND)lParam != NULL) {
+        SetFocus (hwnd);
+      }
       switch (LOWORD (wParam)) {
         case IDM_RESET:
           LOG_I("Emulator reset");
@@ -259,6 +507,21 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                       "Original code copyright (C) Asbjorn Djupdal 2000-2001.", 
                       "About TIKI-100_emul",
                       MB_OK);
+          break;
+        case IDM_HELP:
+          MessageBox (hwnd,
+                      "Keyboard shortcuts:\n\n"
+                      "F10\tToggle FPS display\n"
+                      "F11\tCopy screenshot to clipboard\n"
+                      "F12\tToggle full screen\n"
+                      "ESC\tExit full screen\n\n"
+                      "Status bar lights (bottom left):\n\n"
+                      "1\tLOCK key active\n"
+                      "2\tGRAFIKK (graphics) mode active\n"
+                      "3\tDrive A activity\n"
+                      "4\tDrive B activity\n",
+                      "TIKI-100 Emulator - Keyboard shortcuts",
+                      MB_OK | MB_ICONINFORMATION);
           break;
         case IDM_AVSLUTT:
           PostQuitMessage (0);
@@ -283,12 +546,42 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_B, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (1);
           break;
-        case IDM_TESTDLG:
-          DialogBox (appInst, "testdialog", hwnd, (DLGPROC)TestDialogFunc);
+        case IDM_Z80INFO:
+          if (hwndZ80Info && IsWindow (hwndZ80Info)) {
+            SetForegroundWindow (hwndZ80Info);
+          } else {
+            WNDCLASS wc = {0};
+            wc.lpfnWndProc = Z80InfoWndProc;
+            wc.hInstance = appInst;
+            wc.hbrBackground = (HBRUSH)(COLOR_3DFACE + 1);
+            wc.lpszClassName = "Z80InfoClass";
+            wc.hCursor = LoadCursor (NULL, IDC_ARROW);
+            RegisterClass (&wc);
+            hwndZ80Info = CreateWindowEx (WS_EX_TOOLWINDOW, "Z80InfoClass", "Z80 Information",
+              WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+              CW_USEDEFAULT, CW_USEDEFAULT, 280, 320,
+              hwnd, NULL, appInst, NULL);
+            ShowWindow (hwndZ80Info, SW_SHOW);
+          }
           break;
         case IDM_SPEED_TOGGLE:
           slowDown = SendMessage (hwndSpeedToggle, BM_GETCHECK, 0, 0);
           LOG_I("Speed limit %s", slowDown ? "enabled" : "disabled");
+          break;
+        case IDM_FULLSCREEN:
+          toggleFullscreen();
+          break;
+        case IDM_SCREENSHOT:
+          copyScreenshot (hwnd, memdc, 0, TOOLBAR_HEIGHT, width, height);
+          break;
+        case IDM_FPS:
+          showFps = !showFps;
+          if (showFps) QueryPerformanceCounter (&fpsLastTime);
+          frameCount = 0;
+          currentFps = 0;
+          InvalidateRect (hwndFps, NULL, FALSE);
+          InvalidateRect (hwnd, NULL, FALSE);
+          LOG_I("FPS display %s", showFps ? "enabled" : "disabled");
           break;
 #ifdef DEBUG
         case IDM_MONITOR:
@@ -441,18 +734,70 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
   }
   return 0;
 }
-static BOOL CALLBACK TestDialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM lParam) {
-  switch (message) {
-    case WM_COMMAND:
-      switch (LOWORD(wParam)) {
-        case IDD_TESTDLG_OK:
-        case 2:
-          EndDialog (hdwnd, 0);
-          break;
+extern Z80 cpu;
+static LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+  switch (msg) {
+    case WM_CREATE:
+      SetTimer (hwnd, 1, 200, NULL); /* refresh 5x/sec */
+      return 0;
+    case WM_TIMER:
+      InvalidateRect (hwnd, NULL, TRUE);
+      return 0;
+    case WM_PAINT:
+      {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint (hwnd, &ps);
+        HFONT font = CreateFont (15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+          DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
+        HFONT oldFont = SelectObject (hdc, font);
+        SetBkMode (hdc, TRANSPARENT);
+        char buf[512];
+        int y = 10, dy = 18;
+
+        snprintf (buf, sizeof(buf), "  AF: %04X    AF': %04X", cpu.AF.W, cpu.AF1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  BC: %04X    BC': %04X", cpu.BC.W, cpu.BC1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  DE: %04X    DE': %04X", cpu.DE.W, cpu.DE1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  HL: %04X    HL': %04X", cpu.HL.W, cpu.HL1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        y += 5;
+        snprintf (buf, sizeof(buf), "  IX: %04X    IY:  %04X", cpu.IX.W, cpu.IY.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  PC: %04X    SP:  %04X", cpu.PC.W, cpu.SP.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "   I: %02X      IFF: %02X", cpu.I, cpu.IFF);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        y += 10;
+        /* flags */
+        byte f = cpu.AF.B.l;
+        snprintf (buf, sizeof(buf), "  Flags: %c%c%c%c%c%c%c%c",
+          (f & 0x80) ? 'S' : '-', (f & 0x40) ? 'Z' : '-',
+          (f & 0x20) ? '5' : '-', (f & 0x10) ? 'H' : '-',
+          (f & 0x08) ? '3' : '-', (f & 0x04) ? 'P' : '-',
+          (f & 0x02) ? 'N' : '-', (f & 0x01) ? 'C' : '-');
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        y += 10;
+        snprintf (buf, sizeof(buf), "  ICount: %d", cpu.ICount);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  IPeriod: %d", cpu.IPeriod);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  IRequest: %04X", cpu.IRequest);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+
+        SelectObject (hdc, oldFont);
+        DeleteObject (font);
+        EndPaint (hwnd, &ps);
       }
-      break;
+      return 0;
+    case WM_DESTROY:
+      KillTimer (hwnd, 1);
+      hwndZ80Info = NULL;
+      return 0;
   }
-  return 0;
+  return DefWindowProc (hwnd, msg, wParam, lParam);
 }
 /* hent inn diskbilde fra fil */
 static void getDiskImage (int drive) {
@@ -532,6 +877,50 @@ static void saveDiskImage (int drive) {
     }  
   }
 }
+/* Toggle fullscreen mode */
+static void toggleFullscreen (void) {
+  if (!isFullscreen) {
+    MONITORINFO mi = { sizeof (MONITORINFO) };
+    if (GetWindowPlacement (hwnd, &wpPrev) &&
+        GetMonitorInfo (MonitorFromWindow (hwnd, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+      savedStyle = GetWindowLong (hwnd, GWL_STYLE);
+      SetWindowLong (hwnd, GWL_STYLE, savedStyle & ~(WS_CAPTION | WS_THICKFRAME | WS_OVERLAPPEDWINDOW));
+      SetMenu (hwnd, NULL);
+      ShowWindow (hwndZ80, SW_HIDE);
+      ShowWindow (hwndSpeedToggle, SW_HIDE);
+      ShowWindow (hwndFullscreen, SW_HIDE);
+      ShowWindow (hwndScreenshot, SW_HIDE);
+      ShowWindow (hwndFps, SW_HIDE);
+      SetWindowPos (hwnd, HWND_TOP,
+        mi.rcMonitor.left, mi.rcMonitor.top,
+        mi.rcMonitor.right - mi.rcMonitor.left,
+        mi.rcMonitor.bottom - mi.rcMonitor.top,
+        SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+      isFullscreen = TRUE;
+      LOG_I("Entered fullscreen");
+    }
+  } else {
+    SetWindowLong (hwnd, GWL_STYLE, savedStyle);
+    SetMenu (hwnd, LoadMenu (appInst, "menu"));
+    ShowWindow (hwndZ80, SW_SHOW);
+    ShowWindow (hwndSpeedToggle, SW_SHOW);
+    ShowWindow (hwndFullscreen, SW_SHOW);
+    ShowWindow (hwndScreenshot, SW_SHOW);
+    ShowWindow (hwndFps, SW_SHOW);
+    SetWindowPlacement (hwnd, &wpPrev);
+    SetWindowPos (hwnd, NULL, 0, 0, 0, 0,
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    isFullscreen = FALSE;
+    LOG_I("Exited fullscreen");
+  }
+  if (!isFullscreen) {
+    /* redraw toolbar area */
+    SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
+    PatBlt (memdc, 0, 0, 1024, TOOLBAR_HEIGHT, PATCOPY);
+  }
+  /* force full repaint */
+  InvalidateRect (hwnd, NULL, FALSE);
+}
 /* Forandre oppløsning */
 void changeRes (int newRes) {
   LOG_I("Changing resolution to %s", newRes == HIGHRES ? "high" : newRes == MEDRES ? "medium" : "low");
@@ -552,10 +941,12 @@ void changeRes (int newRes) {
       height = 256 * size40x;
       break;
   }
-  GetWindowRect (hwnd, &windowRect);
-  MoveWindow (hwnd, windowRect.left, windowRect.top, width + 2 * GetSystemMetrics (SM_CXFIXEDFRAME), 
-              height + TOOLBAR_HEIGHT + 2 * GetSystemMetrics (SM_CYFIXEDFRAME) + GetSystemMetrics (SM_CYCAPTION) +
-              GetSystemMetrics (SM_CYMENU) + STATUSBAR_HEIGHT, 1);
+  if (!isFullscreen) {
+    GetWindowRect (hwnd, &windowRect);
+    MoveWindow (hwnd, windowRect.left, windowRect.top, width + 2 * GetSystemMetrics (SM_CXFIXEDFRAME), 
+                height + TOOLBAR_HEIGHT + 2 * GetSystemMetrics (SM_CYFIXEDFRAME) + GetSystemMetrics (SM_CYCAPTION) +
+                GetSystemMetrics (SM_CYMENU) + STATUSBAR_HEIGHT, 1);
+  }
   /* slett bakgrunn */
   SelectObject (memdc, GetStockObject (BLACK_BRUSH));
   PatBlt (memdc, 0, TOOLBAR_HEIGHT, width, height, PATCOPY);
@@ -609,7 +1000,11 @@ void scrollScreen (int distance) {
       break;
   }
   /* scroll memdc */
-  BitBlt (memdc, 0, TOOLBAR_HEIGHT - distance, width, height + distance, memdc, 0, TOOLBAR_HEIGHT, SRCCOPY);
+  if (distance > 0) {
+    BitBlt (memdc, 0, TOOLBAR_HEIGHT, width, height - distance, memdc, 0, TOOLBAR_HEIGHT + distance, SRCCOPY);
+  } else {
+    BitBlt (memdc, 0, TOOLBAR_HEIGHT - distance, width, height + distance, memdc, 0, TOOLBAR_HEIGHT, SRCCOPY);
+  }
   SelectObject (memdc, GetStockObject (BLACK_BRUSH));
   /* slett resten */
   if (distance > 0) {
@@ -666,10 +1061,30 @@ void loopEmul (int ms) {
       }
     }
   }
+  /* FPS counting */
+  if (showFps) {
+    frameCount++;
+    LARGE_INTEGER now;
+    QueryPerformanceCounter (&now);
+    LONGLONG elapsed = now.QuadPart - fpsLastTime.QuadPart;
+    if (elapsed >= fpsFreq.QuadPart) { /* one second passed */
+      currentFps = (int)(frameCount * fpsFreq.QuadPart / elapsed);
+      frameCount = 0;
+      fpsLastTime = now;
+    }
+  }
   /* oppdater skjerm */
-  if (updateWindow) {
-    RECT rect = {xmin, ymin, xmax, ymax};
-    InvalidateRect (hwnd, &rect, FALSE);
+  if (updateWindow || showFps) {
+    if (isFullscreen) {
+      InvalidateRect (hwnd, NULL, FALSE);
+    } else if (showFps) {
+      /* invalidate only emulator + statusbar area, not toolbar */
+      RECT rect = {0, TOOLBAR_HEIGHT, width, TOOLBAR_HEIGHT + height + STATUSBAR_HEIGHT};
+      InvalidateRect (hwnd, &rect, FALSE);
+    } else {
+      RECT rect = {xmin, ymin, xmax, ymax};
+      InvalidateRect (hwnd, &rect, FALSE);
+    }
     xmin = (unsigned)~0, ymin = (unsigned)~0, xmax = 0, ymax = 0;
     updateWindow = FALSE;
   }
@@ -704,6 +1119,37 @@ void loopEmul (int ms) {
         quitEmul();
       } else {
         DispatchMessage (&msg);
+      }
+    }
+  }
+  /* In fast mode, poll physical key state to prevent key repeat.
+   * Each physical press→release cycle gives exactly one keypress
+   * held for 2 frames. Key must be physically released before it
+   * can trigger again. */
+  if (!slowDown) {
+    int i;
+    for (i = 0; i < 256; i++) {
+      byte key = keyTable[i];
+      if (key == KEY_NONE || key == KEY_SHIFT || key == KEY_CTRL ||
+          key == KEY_LOCK || key == KEY_GRAFIKK) continue;
+      if (GetAsyncKeyState (i) & 0x8000) {
+        /* key physically down */
+        if (keyHoldFrames[key] == 0) {
+          /* fresh press - hold for 2 frames */
+          pressedKeys[key] = 0;
+          keyHoldFrames[key] = 2;
+        } else if (keyHoldFrames[key] > 1) {
+          keyHoldFrames[key]--;
+        } else if (keyHoldFrames[key] == 1) {
+          /* 2 frames done - release, but mark as "waiting for physical release" */
+          pressedKeys[key] = 1;
+          keyHoldFrames[key] = -1;
+        }
+        /* keyHoldFrames[key] == -1: waiting for physical release, do nothing */
+      } else {
+        /* key physically up - reset for next press */
+        pressedKeys[key] = 1;
+        keyHoldFrames[key] = 0;
       }
     }
   }

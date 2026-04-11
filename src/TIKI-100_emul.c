@@ -1,7 +1,7 @@
 /* TIKI-100_emul.c V1.1.0
  *
  * Hovedmodul for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -14,7 +14,7 @@ static tiki_bool done = FALSE;
 
 /*****************************************************************************/
 
-/* starter emulering, returnerer når emulering avslutter */
+/* starter emulering, returnerer nÃ¥r emulering avslutter */
 tiki_bool runEmul (void) {
 #ifdef DEBUG
   cpu.Trap = 0xffff;

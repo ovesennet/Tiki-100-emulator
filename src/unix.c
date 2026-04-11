@@ -1,7 +1,7 @@
 /* unix.c V1.1.1
  *
  * Unix (med X11) systemspesifikk kode for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2001
  */
 
 #include "TIKI-100_emul.h"
@@ -139,8 +139,8 @@ static const KeyConv keyConvTable[] = {
   {(byte)'4',   XK_4},           {(byte)'5',      XK_5},         {(byte)'6',    XK_6},
   {(byte)'7',   XK_7},           {(byte)'8',      XK_8},         {(byte)'9',    XK_9},
   {(byte)'0',   XK_0},           {(byte)'<',      XK_less},      {(byte)',',    XK_comma},
-  {(byte)'.',   XK_period},      {(byte)'-',      XK_minus},     {(byte)'æ',    XK_ae},
-  {(byte)'ø',   XK_oslash},      {(byte)'å',      XK_aring},     {(byte)'\'',   XK_apostrophe},
+  {(byte)'.',   XK_period},      {(byte)'-',      XK_minus},     {(byte)'Ã¦',    XK_ae},
+  {(byte)'Ã¸',   XK_oslash},      {(byte)'Ã¥',      XK_aring},     {(byte)'\'',   XK_apostrophe},
   {(byte)'^',   XK_asciicircum}, {(byte)'+',      XK_plus},      {(byte)'@',    XK_at}
 };
 
@@ -170,27 +170,27 @@ int main (int argc, char *argv[]) {
             "    -diskb diskettfilnavn     Diskettfil i stasjon b\n"
             "    -bevarforhold             Emulatorvindu formlik TIKI-100 skjerm\n"
             "    -ikkebevarforhold         Negasjonen av den over\n"
-            "    -40x forstørrelsesfaktor  Forstørring av 40-modus vindu\n"
-            "    -80x forstørrelsesfaktor  Forstørring av 80-modus vindu\n"
+            "    -40x forstÃ¸rrelsesfaktor  ForstÃ¸rring av 40-modus vindu\n"
+            "    -80x forstÃ¸rrelsesfaktor  ForstÃ¸rring av 80-modus vindu\n"
             "    -begrens                  Begrens hastighet til vanlig TIKI-hastighet\n"
             "    -ikkebegrens              Negasjonen av den over\n"
-            "    -port1 devicenavn         Skru på serieport P1\n"
-            "    -port2 devicenavn         Skru på serieport P2\n"
+            "    -port1 devicenavn         Skru pÃ¥ serieport P1\n"
+            "    -port2 devicenavn         Skru pÃ¥ serieport P2\n"
             "    -pk utskriftskommando     Send utskrift til kommando\n"
             "    -pf utskriftsfil          Send utskrift til fil\n"
-            "    -st28b                    Sett bøyle ST 28 b\n"
+            "    -st28b                    Sett bÃ¸yle ST 28 b\n"
             "    -ikkest28b                Negasjonen av den over\n"
             "\n"
-            "Underveis i emulering kan du trykke på Escapetasten for å gå inn i\n"
+            "Underveis i emulering kan du trykke pÃ¥ Escapetasten for Ã¥ gÃ¥ inn i\n"
             "kommandomodus. Kommandoen 'hjelp' gir en liste over gyldige kommandoer.\n"
             "\n");
     exit (1);
   }
 
-  /* åpne display */
+  /* Ã¥pne display */
   XrmGetResource (cline_db, "tikiemul.display", "Tikiemul.display", &resType, &resValue);
   if ((display = XOpenDisplay (resValue.addr)) == NULL) {
-    fprintf (stderr, "Kan ikke åpne display %s\n", XDisplayName (resValue.addr));
+    fprintf (stderr, "Kan ikke Ã¥pne display %s\n", XDisplayName (resValue.addr));
     exit (1);
   }
 
@@ -221,7 +221,7 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  /* finn forstørring og vindusstørrelse */
+  /* finn forstÃ¸rring og vindusstÃ¸rrelse */
   XrmGetResource (options_db, "tikiemul.40x", "Tikiemul.40x", &resType, &resValue);
   if (resValue.addr) times40 = atoi (resValue.addr);
   if (times40 > 4) times40 = 4;
@@ -278,7 +278,7 @@ int main (int argc, char *argv[]) {
     if (visclass == PseudoColor || visclass == DirectColor) {
       /* dynamisk colormap - skaff r/w-fargeceller */
       if (!XAllocColorCells (display, default_cmap, False, NULL, 0, pixels, 16)) {
-        printf ("For få ledige fargeceller\n");
+        printf ("For fÃ¥ ledige fargeceller\n");
         free (dsk[0]);
         free (dsk[1]);
         XCloseDisplay (display);
@@ -376,13 +376,13 @@ int main (int argc, char *argv[]) {
   XSelectInput (display, mainwindow,
                 ExposureMask | KeyPressMask | KeyReleaseMask);
   
-  /* gjør vindu synlig */
+  /* gjÃ¸r vindu synlig */
   XMapWindow (display, mainwindow);
 
   /* init pressedKeys tabell */
   memset (pressedKeys, 1, 256);
 
-  /* bøyle st28b? */
+  /* bÃ¸yle st28b? */
   XrmGetResource (options_db, "tikiemul.st28b", "Tikiemul.st28b", &resType, &resValue);
   if (resValue.addr) {
     if (!strcmp (resValue.addr, "on")) {
@@ -406,7 +406,7 @@ int main (int argc, char *argv[]) {
   XrmGetResource (options_db, "tikiemul.port1", "Tikiemul.port1", &resType, &resValue);
   if (resValue.addr) {
     if ((port1 = open (resValue.addr, O_RDWR | O_NOCTTY | O_NDELAY)) == -1) {
-      fprintf (stderr, "Kan ikke åpne port %s\n", resValue.addr);
+      fprintf (stderr, "Kan ikke Ã¥pne port %s\n", resValue.addr);
       port1 = 0;
     } else {
       fcntl (port1, F_SETFL, 0);
@@ -415,14 +415,14 @@ int main (int argc, char *argv[]) {
   XrmGetResource (options_db, "tikiemul.port2", "Tikiemul.port2", &resType, &resValue);
   if (resValue.addr) {
     if ((port2 = open (resValue.addr, O_RDWR | O_NOCTTY | O_NDELAY)) == -1) {
-      fprintf (stderr, "Kan ikke åpne port %s\n", resValue.addr);
+      fprintf (stderr, "Kan ikke Ã¥pne port %s\n", resValue.addr);
       port2 = 0;
     } else {
       fcntl (port2, F_SETFL, 0);
     }
   }
 
-  /* kjør emulator */
+  /* kjÃ¸r emulator */
   if (!runEmul()) {
     fprintf (stderr, "Finner ikke ROM-fil\n");
   }
@@ -488,7 +488,7 @@ static void createStatusBar (void) {
 
   update (0, xsh.height - STATUSBAR_HEIGHT, xsh.width, STATUSBAR_HEIGHT);
 }
-/* Forandre oppløsning */
+/* Forandre opplÃ¸sning */
 void changeRes (int newRes) {
   resolution = newRes;
 
@@ -520,7 +520,7 @@ void changeRes (int newRes) {
   xsh.max_height = xsh.height;
   XSetNormalHints (display, mainwindow, &xsh);
 
-  /* forandre vindusstørrelse */
+  /* forandre vindusstÃ¸rrelse */
   XResizeWindow (display, mainwindow, xsh.width, xsh.height);
 
   if (!dyn_cmap) {
@@ -629,8 +629,8 @@ void changePalette (int colornumber, byte red, byte green, byte blue) {
     }
   }
 }
-/* Kalles periodisk. Lar system kode måle / senke emuleringshastighet
- * Kan også brukes til sjekk av brukeraktivitet
+/* Kalles periodisk. Lar system kode mÃ¥le / senke emuleringshastighet
+ * Kan ogsÃ¥ brukes til sjekk av brukeraktivitet
  * ms er antall "emulerte" millisekunder siden forrige gang loopEmul ble kalt
  */
 void loopEmul (int ms) {
@@ -639,7 +639,7 @@ void loopEmul (int ms) {
   
   /* senk hastighet */
   if (slowDown) {
-    static boolean firsttime = TRUE; /* brukes for å initialisere lastTOD */
+    static boolean firsttime = TRUE; /* brukes for Ã¥ initialisere lastTOD */
     static struct timeval lastTOD;
     struct timeval currentTOD;
     
@@ -738,7 +738,7 @@ void loopEmul (int ms) {
 static byte keysymToTikikey (KeySym keysym) {
   int i;
 
-  /* lineærsøk gjennom tabell */
+  /* lineÃ¦rsÃ¸k gjennom tabell */
   for (i = 0; i < (sizeof keyConvTable / sizeof (struct KeyConv)); i++) {
     if (keyConvTable[i].keysym == keysym)
       return keyConvTable[i].tikikey;
@@ -787,7 +787,7 @@ static void commandline (void) {
         char *filename = strtok (NULL, " \t\n");
 
         if (!filename) {
-          fprintf (stderr, "For få argumenter\n");
+          fprintf (stderr, "For fÃ¥ argumenter\n");
           continue;
         }
 
@@ -803,7 +803,7 @@ static void commandline (void) {
         char *filename = strtok (NULL, " \t\n");
 
         if (!filename) {
-          fprintf (stderr, "For få argumenter\n");
+          fprintf (stderr, "For fÃ¥ argumenter\n");
           continue;
         }
 
@@ -831,7 +831,7 @@ static void commandline (void) {
         char *driveString = strtok (NULL, " \t\n");
 
         if (!driveString) {
-          fprintf (stderr, "For få argumenter\n");
+          fprintf (stderr, "For fÃ¥ argumenter\n");
           continue;
         }
 
@@ -879,7 +879,7 @@ static void commandline (void) {
         /* vis "om"-tekst */
         puts ("\nTIKI-100_emul V1.1.1 - en freeware TIKI 100 Rev. C emulator.");
         puts ("Z80 emulering copyright (C) Marat Fayzullin 1994,1995,1996,1997.");
-        puts ("Resten copyright (C) Asbjørn Djupdal 2000-2001.\n");
+        puts ("Resten copyright (C) AsbjÃ¸rn Djupdal 2000-2001.\n");
       } else if (!strcmp (cmd, "q") || !strcmp (cmd, "avslutt")) {
         /* avslutt */
         quitEmul();

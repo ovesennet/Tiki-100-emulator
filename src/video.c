@@ -1,7 +1,7 @@
 /* video.c V1.1.0
  *
  * Grafikk emulering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -17,7 +17,7 @@ static const byte blueTable[4] = {0, 85, 170, 255};
 byte gfxRam[32 * 1024];
 
 static byte red = 0, green = 0, blue = 0;     /* farge-register */
-static int res = MEDRES;    /* gjeldende oppløsning */
+static int res = MEDRES;    /* gjeldende opplÃ¸sning */
 static tiki_bool changeColor = FALSE;  /* forandre farge hver gang fargeregister forandres */
 static int colornumber = 0;
 
@@ -61,7 +61,7 @@ void newMode (byte mode) {
     changeColor = FALSE;
   }
   if (res != (mode & 48)) {
-    res = (mode & 48);  /* ny oppløsning */
+    res = (mode & 48);  /* ny opplÃ¸sning */
     changeRes (res);
     {  /* oppdater skjerm */
       int i;
@@ -91,13 +91,13 @@ void newOffset (byte newOffset) {
     byte buffer[128 * 128]; /* skroller aldri mer enn halve skjermen */
     word addr;
 
-    /* flytt på skjerm */
+    /* flytt pÃ¥ skjerm */
     scrollScreen (distance);
 
     if (distance > 0) {
       /* flytt i ram */
-      memmove (buffer, gfxRam, distance * 128); /* øverst -> buffer */
-      memmove (gfxRam, gfxRam + distance * 128, (256 - distance) * 128); /* nederst -> øverst */
+      memmove (buffer, gfxRam, distance * 128); /* Ã¸verst -> buffer */
+      memmove (gfxRam, gfxRam + distance * 128, (256 - distance) * 128); /* nederst -> Ã¸verst */
       memmove (gfxRam + (256 - distance) * 128, buffer, distance * 128); /* buffer -> nederst */
 
       /* oppdater nederste del av skjerm */
@@ -107,10 +107,10 @@ void newOffset (byte newOffset) {
     } else {
       /* flytt i ram */
       memmove (buffer, gfxRam + (byte)distance * 128, -distance * 128); /* nederst -> buffer */
-      memmove (gfxRam + (-distance * 128), gfxRam, (byte)distance * 128); /* øverst -> nederst */
-      memmove (gfxRam, buffer, -distance * 128); /* buffer -> øverst */
+      memmove (gfxRam + (-distance * 128), gfxRam, (byte)distance * 128); /* Ã¸verst -> nederst */
+      memmove (gfxRam, buffer, -distance * 128); /* buffer -> Ã¸verst */
 
-      /* oppdater øverste del av skjerm */
+      /* oppdater Ã¸verste del av skjerm */
       for (addr = 0; addr < -distance * 128; addr++) {
         if (gfxRam[addr]) drawByte (addr);
       }

@@ -1,7 +1,7 @@
 /* disk.c V1.1.1
  *
  * FD17xx emulering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2000-2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2000-2001
  */
 
 #include "TIKI-100_emul.h"
@@ -24,7 +24,7 @@ struct diskParams {
   int sides;        /* antall sider - 1 */
   int sectors;      /* sektorer pr spor */
   int sectSize;     /* bytes pr sektor */
-  int realTrack;    /* hvilken spor r/w-hode står over */
+  int realTrack;    /* hvilken spor r/w-hode stÃ¥r over */
 };
 
 /* protos */
@@ -39,7 +39,7 @@ static struct diskParams params1;   /* data for stasjon 1 */
 static struct diskParams *params;   /* data for aktiv plate */
 
 static int side = 0;                /* gjeldende side (0 eller 1) */
-static tiki_bool motOn = FALSE;       /* om motor er på */
+static tiki_bool motOn = FALSE;       /* om motor er pÃ¥ */
 
 static byte track = 0;              /* sporregister */
 static byte sector = 1;             /* sektorregister */
@@ -47,7 +47,7 @@ static byte data = 0;               /* dataregister */
 static byte status = 0x20;          /* statusregister */
 
 static byte stepDir = STEPIN;       /* verdi som legges til realTrack ved STEP */
-static byte command = NO_COMMAND;   /* kommando som pågår */
+static byte command = NO_COMMAND;   /* kommando som pÃ¥gÃ¥r */
 static long imageOffset = 0;        /* offset inn i diskImage, ved r/w */
 static long endOffset = 0;          /* hvor en r/w kommando skal avslutte */
 static int byteCount = 0;           /* antall behandlede bytes ved READ_ADDR, WRITE_TRACK */
@@ -63,7 +63,7 @@ void diskControl (byte value) {
     params->realTrack = 0;
     status = 0x24;
   }
-  /* søk */
+  /* sÃ¸k */
   else if ((value & 0xf0) == 0x10) {
     if (data >= params->tracks)
       status = 0x30 | (params->realTrack == 0 ? 0x04 : 0x00);
@@ -288,7 +288,7 @@ void disk1 (tiki_bool status) {
   }
   setLights();
 }
-/* skru motor på / av */
+/* skru motor pÃ¥ / av */
 void diskMotor (tiki_bool status) {
   motOn = status;
   setLights();

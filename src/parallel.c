@@ -1,7 +1,7 @@
 /* parallel.c V1.1.0
  *
  * Z80 PIO emulering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2001
  */
 
 #include "TIKI-100_emul.h"
@@ -28,7 +28,7 @@ byte parAData (void) {
 }
 /* les dataregister B */
 byte parBData (void) {
-  return 0x10; /* Ack på, busy og no-paper av */
+  return 0x10; /* Ack pÃ¥, busy og no-paper av */
 }
 /* les statusregister A */
 byte parAStatus (void) {

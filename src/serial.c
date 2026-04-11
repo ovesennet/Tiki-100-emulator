@@ -1,7 +1,7 @@
 /* serial.c V1.1.0
  *
  * Z80 DART emulering for TIKI-100_emul
- * Copyright (C) Asbjørn Djupdal 2001
+ * Copyright (C) AsbjÃ¸rn Djupdal 2001
  */
 
 #include "TIKI-100_emul.h"
@@ -18,7 +18,7 @@ static byte serStatus (struct serParams *sParams);
 
 /* variabler */
 
-extern Z80 cpu;   /* må ha tilgang til cpu for å gjøre interrupt */
+extern Z80 cpu;   /* mÃ¥ ha tilgang til cpu for Ã¥ gjÃ¸re interrupt */
 
 static tiki_bool st28b = FALSE;    /* jumper i TIKI-100 */
 
@@ -59,7 +59,7 @@ static void serControl (byte value, struct serParams *sParams) {
       if ((value & 0x38) == 0x18) {
         sParams->newChar = FALSE;
       }
-      /* Sett interrupt når neste tegn mottas */
+      /* Sett interrupt nÃ¥r neste tegn mottas */
       if ((value & 0x38) == 0x20) {
         sParams->newChar = FALSE;
       }
