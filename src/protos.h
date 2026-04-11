@@ -69,11 +69,16 @@ int initMem();
 /* sound.c                                                                   */
 /*****************************************************************************/
 
+/* initialiser / rydd opp lyd-maskinvare */
+void soundInit (void);
+void soundCleanup (void);
 /* skriv til lyd-register */
 void soundReg (byte value);
 void soundData (byte value);
 /* les lyd-register */
 byte getSoundData (void);
+/* generer lydsampler */
+void updateSound (int cpuCycles);
 
 /*****************************************************************************/
 /* video.c                                                                   */

@@ -5,6 +5,7 @@
  */
 
 #include "TIKI-100_emul.h"
+#include "protos.h"
 #include "win32_res.h"
 
 #include <stdlib.h>
@@ -221,6 +222,9 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
     }
   }
   
+  /* initialiser lyd */
+  soundInit();
+
   /* run emulator */
   if (!runEmul()) {
     LOG_E("ROM file not found");
@@ -228,6 +232,7 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   }
 
   /* avslutt */
+  soundCleanup();
   free (dsk[0]);
   free (dsk[1]);
   if (port1) CloseHandle (port1);

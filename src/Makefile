@@ -12,7 +12,7 @@ CC = gcc
 CFLAGS = -Wall -O -DLSB_FIRST -Wno-multichar -Wno-overflow -Wno-pointer-to-int-cast $(Z80_DEBUGGER)
 
 NO_CONSOLE_ = -Wl,--subsystem,windows
-LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32
+LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32 -lwinmm
 
 #------------------------------------------------------------------------------
 # Rules
