@@ -1,0 +1,84 @@
+/* z80info.c
+ *
+ * Z80 CPU information window - displays live register state
+ */
+
+#include "TIKI-100_emul.h"
+#include "Z80.h"
+#include "z80info.h"
+
+#include <windows.h>
+#include <stdio.h>
+#include <string.h>
+
+extern Z80 cpu;
+static HWND *pHwndZ80Info; /* pointer to owner's HWND tracking variable */
+
+void z80InfoSetHwndPtr (HWND *p) {
+  pHwndZ80Info = p;
+}
+
+LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+  switch (msg) {
+    case WM_CREATE:
+      SetTimer (hwnd, 1, 200, NULL); /* refresh 5x/sec */
+      return 0;
+    case WM_TIMER:
+      InvalidateRect (hwnd, NULL, TRUE);
+      return 0;
+    case WM_PAINT:
+      {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint (hwnd, &ps);
+        HFONT font = CreateFont (15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+          DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
+        HFONT oldFont = SelectObject (hdc, font);
+        SetBkMode (hdc, TRANSPARENT);
+        char buf[512];
+        int y = 10, dy = 18;
+
+        snprintf (buf, sizeof(buf), "  AF: %04X    AF': %04X", cpu.AF.W, cpu.AF1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  BC: %04X    BC': %04X", cpu.BC.W, cpu.BC1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  DE: %04X    DE': %04X", cpu.DE.W, cpu.DE1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  HL: %04X    HL': %04X", cpu.HL.W, cpu.HL1.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        y += 5;
+        snprintf (buf, sizeof(buf), "  IX: %04X    IY:  %04X", cpu.IX.W, cpu.IY.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  PC: %04X    SP:  %04X", cpu.PC.W, cpu.SP.W);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "   I: %02X      IFF: %02X", cpu.I, cpu.IFF);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        y += 10;
+        /* flags */
+        byte f = cpu.AF.B.l;
+        snprintf (buf, sizeof(buf), "  Flags: %c%c%c%c%c%c%c%c",
+          (f & 0x80) ? 'S' : '-', (f & 0x40) ? 'Z' : '-',
+          (f & 0x20) ? '5' : '-', (f & 0x10) ? 'H' : '-',
+          (f & 0x08) ? '3' : '-', (f & 0x04) ? 'P' : '-',
+          (f & 0x02) ? 'N' : '-', (f & 0x01) ? 'C' : '-');
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        y += 10;
+        snprintf (buf, sizeof(buf), "  ICount: %d", cpu.ICount);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  IPeriod: %d", cpu.IPeriod);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+        snprintf (buf, sizeof(buf), "  IRequest: %04X", cpu.IRequest);
+        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
+
+        SelectObject (hdc, oldFont);
+        DeleteObject (font);
+        EndPaint (hwnd, &ps);
+      }
+      return 0;
+    case WM_DESTROY:
+      KillTimer (hwnd, 1);
+      if (pHwndZ80Info) *pHwndZ80Info = NULL;
+      return 0;
+  }
+  return DefWindowProc (hwnd, msg, wParam, lParam);
+}

@@ -15,6 +15,8 @@
 
 #include "log.h"
 #include "screenshot.h"
+#include "z80info.h"
+#include "memview.h"
 
 #define ERROR_CAPTION     "TIKI-100_emul error"
 #define STATUSBAR_HEIGHT  19
@@ -24,7 +26,6 @@
 int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, int nWinMode);
 static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static BOOL CALLBACK DialogFunc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-static LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 static void update (int x, int y, int w, int h);
 static void draw3dBox (int x, int y, int w, int h);
@@ -102,6 +103,8 @@ static char port2Name[256] = "COM2";
 static char port3Name[256] = "LPT1";
 static HWND hwndZ80;
 static HWND hwndZ80Info;
+static HWND hwndMem;
+static HWND hwndMemInfo;
 static HWND hwndSpeedToggle;
 static HWND hwndFullscreen;
 static HWND hwndScreenshot;
@@ -212,10 +215,15 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
           4, 3, 24, 24,
           hwnd, (HMENU)IDM_Z80INFO, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+        /* create memory viewer button (owner-drawn icon) */
+        hwndMem = CreateWindow ("BUTTON", NULL,
+          WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+          32, 3, 24, 24,
+          hwnd, (HMENU)IDM_MEMVIEW, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create fullscreen button (owner-drawn icon) */
         hwndFullscreen = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          32, 3, 24, 24,
+          60, 3, 24, 24,
           hwnd, (HMENU)IDM_FULLSCREEN, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create tooltip for fullscreen button */
         hwndTooltip = CreateWindowEx (0, TOOLTIPS_CLASS, NULL,
@@ -234,7 +242,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create screenshot button (owner-drawn icon) */
         hwndScreenshot = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          60, 3, 24, 24,
+          88, 3, 24, 24,
           hwnd, (HMENU)IDM_SCREENSHOT, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* tooltip for screenshot button */
         {
@@ -249,12 +257,12 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create FPS toggle button (owner-drawn icon) */
         hwndFps = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          88, 3, 24, 24,
+          116, 3, 24, 24,
           hwnd, (HMENU)IDM_FPS, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create speed toggle button */
         hwndSpeedToggle = CreateWindow ("BUTTON", "Limit speed",
           WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-          118, 6, 100, 18,
+          146, 6, 100, 18,
           hwnd, (HMENU)IDM_SPEED_TOGGLE, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         SendMessage (hwndSpeedToggle, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
         SendMessage (hwndSpeedToggle, BM_SETCHECK, BST_CHECKED, 0);
@@ -278,6 +286,16 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           ti.lpszText = "Z80 CPU information";
           SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
         }
+        /* tooltip for memory viewer button */
+        {
+          TOOLINFO ti = {0};
+          ti.cbSize = sizeof (TOOLINFO);
+          ti.uFlags = TTF_SUBCLASS | TTF_IDISHWND;
+          ti.hwnd = hwnd;
+          ti.uId = (UINT_PTR)hwndMem;
+          ti.lpszText = "Memory viewer";
+          SendMessage (hwndTooltip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+        }
         /* init FPS counter */
         QueryPerformanceFrequency (&fpsFreq);
         QueryPerformanceCounter (&fpsLastTime);
@@ -299,6 +317,20 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
           HFONT oldFont = SelectObject (dis->hDC, font);
           DrawText (dis->hDC, "Z80", 3, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+          SelectObject (dis->hDC, oldFont);
+          DeleteObject (font);
+        }
+        if (dis->CtlID == IDM_MEMVIEW) {
+          RECT rc = dis->rcItem;
+          UINT edge = (dis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0;
+          DrawFrameControl (dis->hDC, &rc, DFC_BUTTON, DFCS_BUTTONPUSH | edge);
+          SetBkMode (dis->hDC, TRANSPARENT);
+          SetTextColor (dis->hDC, GetSysColor (COLOR_BTNTEXT));
+          HFONT font = CreateFont (11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
+          HFONT oldFont = SelectObject (dis->hDC, font);
+          DrawText (dis->hDC, "MEM", 3, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
           SelectObject (dis->hDC, oldFont);
           DeleteObject (font);
         }
@@ -557,11 +589,37 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             wc.lpszClassName = "Z80InfoClass";
             wc.hCursor = LoadCursor (NULL, IDC_ARROW);
             RegisterClass (&wc);
+            z80InfoSetHwndPtr (&hwndZ80Info);
             hwndZ80Info = CreateWindowEx (WS_EX_TOOLWINDOW, "Z80InfoClass", "Z80 Information",
               WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
               CW_USEDEFAULT, CW_USEDEFAULT, 280, 320,
               hwnd, NULL, appInst, NULL);
             ShowWindow (hwndZ80Info, SW_SHOW);
+          }
+          break;
+        case IDM_MEMVIEW:
+          if (hwndMemInfo && IsWindow (hwndMemInfo)) {
+            SetForegroundWindow (hwndMemInfo);
+          } else {
+            WNDCLASS wc = {0};
+            wc.lpfnWndProc = MemViewWndProc;
+            wc.hInstance = appInst;
+            wc.hbrBackground = (HBRUSH)(COLOR_3DFACE + 1);
+            wc.lpszClassName = "MemViewClass";
+            wc.hCursor = LoadCursor (NULL, IDC_ARROW);
+            RegisterClass (&wc);
+            memViewSetHwndPtr (&hwndMemInfo);
+            {
+              /* compute window size to fit 32 lines + toolbar exactly */
+              RECT rc = {0, 0, 620, MEMVIEW_TOOLBAR + 2 + MEMVIEW_LINES * 14};
+              AdjustWindowRectEx (&rc, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VSCROLL,
+                FALSE, WS_EX_TOOLWINDOW);
+              hwndMemInfo = CreateWindowEx (WS_EX_TOOLWINDOW, "MemViewClass", "Memory Viewer",
+                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VSCROLL,
+                CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
+                hwnd, NULL, appInst, NULL);
+            }
+            ShowWindow (hwndMemInfo, SW_SHOW);
           }
           break;
         case IDM_SPEED_TOGGLE:
@@ -734,71 +792,6 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
   }
   return 0;
 }
-extern Z80 cpu;
-static LRESULT CALLBACK Z80InfoWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-  switch (msg) {
-    case WM_CREATE:
-      SetTimer (hwnd, 1, 200, NULL); /* refresh 5x/sec */
-      return 0;
-    case WM_TIMER:
-      InvalidateRect (hwnd, NULL, TRUE);
-      return 0;
-    case WM_PAINT:
-      {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint (hwnd, &ps);
-        HFONT font = CreateFont (15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-          DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
-        HFONT oldFont = SelectObject (hdc, font);
-        SetBkMode (hdc, TRANSPARENT);
-        char buf[512];
-        int y = 10, dy = 18;
-
-        snprintf (buf, sizeof(buf), "  AF: %04X    AF': %04X", cpu.AF.W, cpu.AF1.W);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "  BC: %04X    BC': %04X", cpu.BC.W, cpu.BC1.W);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "  DE: %04X    DE': %04X", cpu.DE.W, cpu.DE1.W);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "  HL: %04X    HL': %04X", cpu.HL.W, cpu.HL1.W);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        y += 5;
-        snprintf (buf, sizeof(buf), "  IX: %04X    IY:  %04X", cpu.IX.W, cpu.IY.W);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "  PC: %04X    SP:  %04X", cpu.PC.W, cpu.SP.W);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "   I: %02X      IFF: %02X", cpu.I, cpu.IFF);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        y += 10;
-        /* flags */
-        byte f = cpu.AF.B.l;
-        snprintf (buf, sizeof(buf), "  Flags: %c%c%c%c%c%c%c%c",
-          (f & 0x80) ? 'S' : '-', (f & 0x40) ? 'Z' : '-',
-          (f & 0x20) ? '5' : '-', (f & 0x10) ? 'H' : '-',
-          (f & 0x08) ? '3' : '-', (f & 0x04) ? 'P' : '-',
-          (f & 0x02) ? 'N' : '-', (f & 0x01) ? 'C' : '-');
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        y += 10;
-        snprintf (buf, sizeof(buf), "  ICount: %d", cpu.ICount);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "  IPeriod: %d", cpu.IPeriod);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-        snprintf (buf, sizeof(buf), "  IRequest: %04X", cpu.IRequest);
-        TextOut (hdc, 10, y, buf, strlen(buf)); y += dy;
-
-        SelectObject (hdc, oldFont);
-        DeleteObject (font);
-        EndPaint (hwnd, &ps);
-      }
-      return 0;
-    case WM_DESTROY:
-      KillTimer (hwnd, 1);
-      hwndZ80Info = NULL;
-      return 0;
-  }
-  return DefWindowProc (hwnd, msg, wParam, lParam);
-}
 /* hent inn diskbilde fra fil */
 static void getDiskImage (int drive) {
   OPENFILENAME fname;
@@ -887,6 +880,7 @@ static void toggleFullscreen (void) {
       SetWindowLong (hwnd, GWL_STYLE, savedStyle & ~(WS_CAPTION | WS_THICKFRAME | WS_OVERLAPPEDWINDOW));
       SetMenu (hwnd, NULL);
       ShowWindow (hwndZ80, SW_HIDE);
+      ShowWindow (hwndMem, SW_HIDE);
       ShowWindow (hwndSpeedToggle, SW_HIDE);
       ShowWindow (hwndFullscreen, SW_HIDE);
       ShowWindow (hwndScreenshot, SW_HIDE);
@@ -903,6 +897,7 @@ static void toggleFullscreen (void) {
     SetWindowLong (hwnd, GWL_STYLE, savedStyle);
     SetMenu (hwnd, LoadMenu (appInst, "menu"));
     ShowWindow (hwndZ80, SW_SHOW);
+    ShowWindow (hwndMem, SW_SHOW);
     ShowWindow (hwndSpeedToggle, SW_SHOW);
     ShowWindow (hwndFullscreen, SW_SHOW);
     ShowWindow (hwndScreenshot, SW_SHOW);
@@ -1118,6 +1113,9 @@ void loopEmul (int ms) {
         DeleteObject (hbit);
         quitEmul();
       } else {
+        /* TranslateMessage for memview search box (EDIT control needs WM_CHAR) */
+        if (memViewIsChild (msg.hwnd))
+          TranslateMessage (&msg);
         DispatchMessage (&msg);
       }
     }

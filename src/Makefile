@@ -20,7 +20,7 @@ LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32
 
 BINDIR = ../bin
 
-OBJECTS = $(BINDIR)/TIKI-100_emul.o $(BINDIR)/mem.o $(BINDIR)/video.o $(BINDIR)/sound.o $(BINDIR)/ctc.o $(BINDIR)/keyboard.o $(BINDIR)/disk.o $(BINDIR)/serial.o $(BINDIR)/parallel.o $(BINDIR)/Z80.o $(BINDIR)/Debug.o $(BINDIR)/log.o $(BINDIR)/screenshot.o $(BINDIR)/win32.o $(BINDIR)/win32_res.res
+OBJECTS = $(BINDIR)/TIKI-100_emul.o $(BINDIR)/mem.o $(BINDIR)/video.o $(BINDIR)/sound.o $(BINDIR)/ctc.o $(BINDIR)/keyboard.o $(BINDIR)/disk.o $(BINDIR)/serial.o $(BINDIR)/parallel.o $(BINDIR)/Z80.o $(BINDIR)/Debug.o $(BINDIR)/log.o $(BINDIR)/screenshot.o $(BINDIR)/z80info.o $(BINDIR)/memview.o $(BINDIR)/win32.o $(BINDIR)/win32_res.res
 
 $(BINDIR)/tikiemul.exe : $(OBJECTS) Makefile | $(BINDIR)
 	$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
@@ -67,7 +67,13 @@ $(BINDIR)/log.o : log.c log.h Makefile | $(BINDIR)
 $(BINDIR)/screenshot.o : screenshot.c screenshot.h log.h Makefile | $(BINDIR)
 	$(CC) -c $< -o $@ $(CFLAGS)
 
-$(BINDIR)/win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h screenshot.h Makefile | $(BINDIR)
+$(BINDIR)/z80info.o : z80info.c z80info.h TIKI-100_emul.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+$(BINDIR)/memview.o : memview.c memview.h TIKI-100_emul.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+$(BINDIR)/win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h screenshot.h z80info.h memview.h Makefile | $(BINDIR)
 	$(CC) -c $< -o $@ $(CFLAGS) -fexec-charset=CP1252
 
 $(BINDIR)/win32_res.res : win32_res.rc win32_res.h win32.ico TIKI-100_emul.h Z80.h Makefile | $(BINDIR)
