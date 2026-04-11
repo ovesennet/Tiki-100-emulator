@@ -22,6 +22,7 @@
 
 #define ERROR_CAPTION     "TIKI-100_emul error"
 #define STATUSBAR_HEIGHT  19
+#define DISKBAR_HEIGHT    19
 #define TOOLBAR_HEIGHT    30
 
 /* protos */
@@ -36,6 +37,7 @@ static void getDiskImage (int drive);
 static void saveDiskImage (int drive);
 static void setParam (HANDLE portHandle, struct serParams *params);
 static void toggleFullscreen (void);
+static void updateDiskBar (void);
 
 /* variabler */
 
@@ -125,6 +127,8 @@ static WINDOWPLACEMENT wpPrev;
 static LONG savedStyle;
 static HMENU savedMenu;
 static int keyHoldFrames[256]; /* frames remaining for key press in fast mode */
+static char diskNameA[260] = "";
+static char diskNameB[260] = "";
 
 /*****************************************************************************/
 
@@ -250,10 +254,10 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       { /* set up memdc */
         HDC hdc = GetDC (hwnd);
         memdc = CreateCompatibleDC (hdc);
-        hbit = CreateCompatibleBitmap (hdc, 1024, 1024 + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT);
+        hbit = CreateCompatibleBitmap (hdc, 1024, 1024 + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT + DISKBAR_HEIGHT);
         SelectObject (memdc, hbit);
         SelectObject (memdc, GetStockObject (BLACK_BRUSH));
-        PatBlt (memdc, 0, 0, 1024, 1024 + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT, PATCOPY);
+        PatBlt (memdc, 0, 0, 1024, 1024 + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT + DISKBAR_HEIGHT, PATCOPY);
         /* toolbar background */
         SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
         PatBlt (memdc, 0, 0, 1024, TOOLBAR_HEIGHT, PATCOPY);
@@ -564,6 +568,8 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       grafikkLight (grafikk);
       diskLight (0, disk[0]);
       diskLight (1, disk[1]);
+      /* disk filename bar */
+      updateDiskBar();
       break;
     case WM_DESTROY:
       PostQuitMessage (0);
@@ -651,11 +657,15 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_A, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (0);
           diskViewSetDisk (0, NULL, 0);
+          diskNameA[0] = '\0';
+          updateDiskBar();
           break;
         case IDM_FJERN_B:
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_B, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (1);
           diskViewSetDisk (1, NULL, 0);
+          diskNameB[0] = '\0';
+          updateDiskBar();
           break;
         case IDM_Z80INFO:
           if (hwndZ80Info && IsWindow (hwndZ80Info)) {
@@ -770,6 +780,33 @@ static void draw3dBox (int x, int y, int w, int h) {
   SelectObject (memdc, obj);
   DeleteObject (pen2);
   DeleteObject (pen1);
+}
+/* update the disk filename bar below the statusbar */
+static void updateDiskBar (void) {
+  int barY = TOOLBAR_HEIGHT + height + STATUSBAR_HEIGHT;
+  /* clear background */
+  SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
+  PatBlt (memdc, 0, barY, width, DISKBAR_HEIGHT, PATCOPY);
+  /* draw text */
+  char text[560];
+  const char *nameA = diskNameA[0] ? diskNameA : "(not loaded)";
+  const char *nameB = diskNameB[0] ? diskNameB : "(not loaded)";
+  snprintf (text, sizeof (text), "  A: %s   B: %s", nameA, nameB);
+  HFONT font = CreateFont (13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+    DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
+  HFONT oldFont = SelectObject (memdc, font);
+  SetBkMode (memdc, TRANSPARENT);
+  SetTextColor (memdc, GetSysColor (COLOR_BTNTEXT));
+  RECT rc = {0, barY, width, barY + DISKBAR_HEIGHT};
+  DrawText (memdc, text, -1, &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+  SelectObject (memdc, oldFont);
+  DeleteObject (font);
+  /* invalidate disk bar area */
+  if (!isFullscreen) {
+    RECT inv = {0, barY, width, barY + DISKBAR_HEIGHT};
+    InvalidateRect (hwnd, &inv, FALSE);
+  }
 }
 static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM lParam) {
   static HWND ud40Wnd, ud80Wnd;
@@ -918,6 +955,15 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
     return FALSE;
   }
   CloseHandle (hFile);
+  /* extract just the filename from the full path */
+  {
+    const char *name = strrchr (path, '\\');
+    if (!name) name = strrchr (path, '/');
+    name = name ? name + 1 : path;
+    char *dst = (drive == 0) ? diskNameA : diskNameB;
+    strncpy (dst, name, 259);
+    dst[259] = '\0';
+  }
   switch (fileSize[drive]) {
     case 40*1*18*128:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
@@ -925,6 +971,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 40, 1, 18, 128);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x1x18x128 from %s", 'A' + drive, path);
+      updateDiskBar();
       return TRUE;
     case 40*1*10*512:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
@@ -932,6 +979,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 40, 1, 10, 512);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x1x10x512 from %s", 'A' + drive, path);
+      updateDiskBar();
       return TRUE;
     case 40*2*10*512:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
@@ -939,6 +987,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 40, 2, 10, 512);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x2x10x512 from %s", 'A' + drive, path);
+      updateDiskBar();
       return TRUE;
     case 80*2*10*512:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
@@ -946,11 +995,13 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 80, 2, 10, 512);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 80x2x10x512 from %s", 'A' + drive, path);
+      updateDiskBar();
       return TRUE;
     default:
       LOG_W("Unsupported disk image size: %lu bytes (%s)", fileSize[drive], path);
       removeDisk (drive);
       fileSize[drive] = 0;
+      if (drive == 0) diskNameA[0] = '\0'; else diskNameB[0] = '\0';
       return FALSE;
   }
 }
@@ -1066,7 +1117,7 @@ void changeRes (int newRes) {
     GetWindowRect (hwnd, &windowRect);
     MoveWindow (hwnd, windowRect.left, windowRect.top, width + 2 * GetSystemMetrics (SM_CXFIXEDFRAME), 
                 height + TOOLBAR_HEIGHT + 2 * GetSystemMetrics (SM_CYFIXEDFRAME) + GetSystemMetrics (SM_CYCAPTION) +
-                GetSystemMetrics (SM_CYMENU) + STATUSBAR_HEIGHT, 1);
+                GetSystemMetrics (SM_CYMENU) + STATUSBAR_HEIGHT + DISKBAR_HEIGHT, 1);
   }
   /* slett bakgrunn */
   SelectObject (memdc, GetStockObject (BLACK_BRUSH));
@@ -1212,7 +1263,7 @@ void loopEmul (int ms) {
       InvalidateRect (hwnd, NULL, FALSE);
     } else if (showFps) {
       /* invalidate only emulator + statusbar area, not toolbar */
-      RECT rect = {0, TOOLBAR_HEIGHT, width, TOOLBAR_HEIGHT + height + STATUSBAR_HEIGHT};
+      RECT rect = {0, TOOLBAR_HEIGHT, width, TOOLBAR_HEIGHT + height + STATUSBAR_HEIGHT + DISKBAR_HEIGHT};
       InvalidateRect (hwnd, &rect, FALSE);
     } else {
       RECT rect = {xmin, ymin, xmax, ymax};
