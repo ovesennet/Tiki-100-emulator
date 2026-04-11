@@ -28,6 +28,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 static BOOL CALLBACK DialogFunc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 static void update (int x, int y, int w, int h);
+static tiki_bool loadDiskFromFile (int drive, const char *path);
 static void draw3dBox (int x, int y, int w, int h);
 static void getDiskImage (int drive);
 static void saveDiskImage (int drive);
@@ -177,6 +178,44 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   /* finn katalog */
   GetCurrentDirectory (256, defaultDir);
   LOG_T("Working directory: %s", defaultDir);
+
+  /* parse command-line disk image arguments */
+  {
+    char *p;
+    char path[260];
+    int i;
+    if ((p = strstr (lpszArgs, "-diska")) != NULL) {
+      p += 6;
+      while (*p == ' ') p++;
+      /* handle quoted paths */
+      if (*p == '"') {
+        p++;
+        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
+      } else {
+        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
+      }
+      path[i] = '\0';
+      if (i > 0) {
+        LOG_I("Command-line disk A: %s", path);
+        loadDiskFromFile (0, path);
+      }
+    }
+    if ((p = strstr (lpszArgs, "-diskb")) != NULL) {
+      p += 6;
+      while (*p == ' ') p++;
+      if (*p == '"') {
+        p++;
+        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
+      } else {
+        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
+      }
+      path[i] = '\0';
+      if (i > 0) {
+        LOG_I("Command-line disk B: %s", path);
+        loadDiskFromFile (1, path);
+      }
+    }
+  }
   
   /* run emulator */
   if (!runEmul()) {
@@ -792,11 +831,64 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
   }
   return 0;
 }
+/* load a disk image from a file path into the given drive (0=A, 1=B)
+ * returns TRUE on success */
+static tiki_bool loadDiskFromFile (int drive, const char *path) {
+  HANDLE hFile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ, NULL,
+    OPEN_EXISTING, 0, NULL);
+  if (hFile == INVALID_HANDLE_VALUE) {
+    LOG_W("Cannot open disk image: %s", path);
+    return FALSE;
+  }
+  fileSize[drive] = GetFileSize (hFile, NULL);
+  free (dsk[drive]);
+  dsk[drive] = NULL;
+  if (!(dsk[drive] = (byte *)malloc (fileSize[drive]))) {
+    CloseHandle (hFile);
+    return FALSE;
+  }
+  DWORD dwRead;
+  if (!ReadFile (hFile, dsk[drive], fileSize[drive], &dwRead, NULL)) {
+    CloseHandle (hFile);
+    return FALSE;
+  }
+  CloseHandle (hFile);
+  switch (fileSize[drive]) {
+    case 40*1*18*128:
+      EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
+                      MF_BYCOMMAND | MF_ENABLED);
+      insertDisk (drive, dsk[drive], 40, 1, 18, 128);
+      LOG_I("Loaded disk %c: 40x1x18x128 from %s", 'A' + drive, path);
+      return TRUE;
+    case 40*1*10*512:
+      EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
+                      MF_BYCOMMAND | MF_ENABLED);
+      insertDisk (drive, dsk[drive], 40, 1, 10, 512);
+      LOG_I("Loaded disk %c: 40x1x10x512 from %s", 'A' + drive, path);
+      return TRUE;
+    case 40*2*10*512:
+      EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
+                      MF_BYCOMMAND | MF_ENABLED);
+      insertDisk (drive, dsk[drive], 40, 2, 10, 512);
+      LOG_I("Loaded disk %c: 40x2x10x512 from %s", 'A' + drive, path);
+      return TRUE;
+    case 80*2*10*512:
+      EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
+                      MF_BYCOMMAND | MF_ENABLED);
+      insertDisk (drive, dsk[drive], 80, 2, 10, 512);
+      LOG_I("Loaded disk %c: 80x2x10x512 from %s", 'A' + drive, path);
+      return TRUE;
+    default:
+      LOG_W("Unsupported disk image size: %lu bytes (%s)", fileSize[drive], path);
+      removeDisk (drive);
+      fileSize[drive] = 0;
+      return FALSE;
+  }
+}
 /* hent inn diskbilde fra fil */
 static void getDiskImage (int drive) {
   OPENFILENAME fname;
   char fn[256] = "\0";
-  HANDLE hFile;
 
   memset (&fname, 0, sizeof (OPENFILENAME));
   fname.lStructSize = sizeof (OPENFILENAME);
@@ -806,46 +898,7 @@ static void getDiskImage (int drive) {
   fname.Flags = OFN_FILEMUSTEXIST;
   
   if (GetOpenFileName (&fname)) {
-    if ((hFile = CreateFile (fn, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL)) != INVALID_HANDLE_VALUE) {
-      fileSize[drive] = GetFileSize (hFile, NULL);
-      free (dsk[drive]);
-      if ((dsk[drive] = (byte *)malloc (fileSize[drive]))) {
-        DWORD dwRead;
-        if (ReadFile (hFile, dsk[drive], fileSize[drive], &dwRead, NULL)) {
-          switch (fileSize[drive]) {
-            case 40*1*18*128:
-              EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
-                              MF_BYCOMMAND | MF_ENABLED);    
-              insertDisk (drive, dsk[drive], 40, 1, 18, 128);
-              LOG_I("Loaded disk %c: 40x1x18x128", 'A' + drive);
-              break;
-            case 40*1*10*512:
-              EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
-                              MF_BYCOMMAND | MF_ENABLED);    
-              insertDisk (drive, dsk[drive], 40, 1, 10, 512);
-              LOG_I("Loaded disk %c: 40x1x10x512", 'A' + drive);
-              break;
-            case 40*2*10*512:
-              EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
-                              MF_BYCOMMAND | MF_ENABLED);    
-              insertDisk (drive, dsk[drive], 40, 2, 10, 512);
-              LOG_I("Loaded disk %c: 40x2x10x512", 'A' + drive);
-              break;
-            case 80*2*10*512:
-              EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
-                              MF_BYCOMMAND | MF_ENABLED);    
-              insertDisk (drive, dsk[drive], 80, 2, 10, 512);
-              LOG_I("Loaded disk %c: 80x2x10x512", 'A' + drive);
-              break;
-            default:
-              LOG_W("Unsupported disk image size: %lu bytes", fileSize[drive]);
-              removeDisk (drive);
-              fileSize[drive] = 0;
-          }
-        }
-      }
-      CloseHandle (hFile);
-    }  
+    loadDiskFromFile (drive, fn);
   }
 }
 /* lagre diskbilde til fil */
