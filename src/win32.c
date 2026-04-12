@@ -7,12 +7,16 @@
 #include "TIKI-100_emul.h"
 #include "protos.h"
 #include "win32_res.h"
+#include "version.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 
 #include <windows.h>
 #include <commctrl.h>
+#include <shellapi.h>
+#include <dwmapi.h>
+#include <shlobj.h>
 
 #include "log.h"
 #include "screenshot.h"
@@ -20,10 +24,13 @@
 #include "memview.h"
 #include "diskview.h"
 
-#define ERROR_CAPTION     "TIKI-100_emul error"
+#define ERROR_CAPTION     "TIKI-100 Emulator error"
 #define STATUSBAR_HEIGHT  19
 #define DISKBAR_HEIGHT    19
 #define TOOLBAR_HEIGHT    30
+#define MIN_WINDOW_WIDTH  350
+#define MRU_MAX_ENTRIES   8
+#define INI_FILENAME      "tikiemul.ini"
 
 /* protos */
 int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, int nWinMode);
@@ -38,6 +45,15 @@ static void saveDiskImage (int drive);
 static void setParam (HANDLE portHandle, struct serParams *params);
 static void toggleFullscreen (void);
 static void updateDiskBar (void);
+static void showAboutDialog (HWND parent);
+static void getIniPath (char *buf, int bufSize);
+static void mruAdd (const char *path);
+static void mruLoad (void);
+static void mruSave (void);
+static void mruBuildMenu (void);
+static void saveWindowPos (void);
+static void loadWindowPos (int *x, int *y);
+static void setDarkTitleBar (HWND hWnd);
 
 /* variabler */
 
@@ -129,6 +145,9 @@ static HMENU savedMenu;
 static int keyHoldFrames[256]; /* frames remaining for key press in fast mode */
 static char diskNameA[260] = "";
 static char diskNameB[260] = "";
+static char iniPath[MAX_PATH] = "";
+static char mruList[MRU_MAX_ENTRIES][MAX_PATH];
+static int mruCount = 0;
 
 /*****************************************************************************/
 
@@ -146,12 +165,15 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   }
 
   logInit(consoleEnabled);
-  LOG_I("TIKI-100_emul v1.2.0 starting");
+  LOG_I("TIKI-100 Emulator v" VERSION_STR " starting");
   LOG_T("Command line: %s", lpszArgs);
 
   appInst = hThisInst;
 
-  InitCommonControls();
+  {
+    INITCOMMONCONTROLSEX icc = { sizeof (INITCOMMONCONTROLSEX), ICC_LINK_CLASS | ICC_STANDARD_CLASSES };
+    InitCommonControlsEx (&icc);
+  }
 
   /* lag og registrer vindusklasse */
   wcl.cbSize = sizeof (WNDCLASSEX);
@@ -173,9 +195,30 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
 
   LOG_T("Window class registered");
 
-  /* create window */
-  hwnd = CreateWindow (szWinName, "TIKI-100 Emulator v1.2.0", WS_OVERLAPPEDWINDOW & ~WS_SIZEBOX & ~WS_MAXIMIZEBOX, CW_USEDEFAULT, 
+  /* create window - allow resizing with WS_THICKFRAME */
+  hwnd = CreateWindow (szWinName, "TIKI-100 Emulator v" VERSION_STR, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 
                        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, HWND_DESKTOP, NULL, hThisInst, NULL);
+  
+  /* dark title bar on Windows 10/11 */
+  setDarkTitleBar (hwnd);
+  
+  /* enable drag-and-drop */
+  DragAcceptFiles (hwnd, TRUE);
+  
+  /* load INI path and MRU list */
+  getIniPath (iniPath, sizeof (iniPath));
+  mruLoad();
+  mruBuildMenu();
+  
+  /* restore window position from INI */
+  {
+    int wx, wy;
+    loadWindowPos (&wx, &wy);
+    if (wx != CW_USEDEFAULT && wy != CW_USEDEFAULT) {
+      SetWindowPos (hwnd, NULL, wx, wy, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+    }
+  }
+  
   changeRes (MEDRES);
   ShowWindow (hwnd, nWinMode);
 
@@ -243,7 +286,7 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   if (port2) CloseHandle (port2);
   if (port3) CloseHandle (port3);
 
-  LOG_I("TIKI-100_emul shutting down");
+  LOG_I("TIKI-100 Emulator shutting down");
 
   return 0;
 }
@@ -265,22 +308,22 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create Z80 info button (owner-drawn icon) */
         hwndZ80 = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          4, 3, 24, 24,
+          4, 3, 30, 24,
           hwnd, (HMENU)IDM_Z80INFO, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create memory viewer button (owner-drawn icon) */
         hwndMem = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          32, 3, 24, 24,
+          38, 3, 30, 24,
           hwnd, (HMENU)IDM_MEMVIEW, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create disk viewer button (owner-drawn icon) */
         hwndDsk = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          60, 3, 24, 24,
+          72, 3, 30, 24,
           hwnd, (HMENU)IDM_DISKVIEW, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create fullscreen button (owner-drawn icon) */
         hwndFullscreen = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          88, 3, 24, 24,
+          106, 3, 24, 24,
           hwnd, (HMENU)IDM_FULLSCREEN, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create tooltip for fullscreen button */
         hwndTooltip = CreateWindowEx (0, TOOLTIPS_CLASS, NULL,
@@ -299,7 +342,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create screenshot button (owner-drawn icon) */
         hwndScreenshot = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          116, 3, 24, 24,
+          134, 3, 24, 24,
           hwnd, (HMENU)IDM_SCREENSHOT, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* tooltip for screenshot button */
         {
@@ -314,12 +357,12 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         /* create FPS toggle button (owner-drawn icon) */
         hwndFps = CreateWindow ("BUTTON", NULL,
           WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
-          144, 3, 24, 24,
+          162, 3, 30, 24,
           hwnd, (HMENU)IDM_FPS, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         /* create speed toggle button */
         hwndSpeedToggle = CreateWindow ("BUTTON", "Limit speed",
           WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-          174, 6, 100, 18,
+          198, 6, 100, 18,
           hwnd, (HMENU)IDM_SPEED_TOGGLE, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
         SendMessage (hwndSpeedToggle, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
         SendMessage (hwndSpeedToggle, BM_SETCHECK, BST_CHECKED, 0);
@@ -519,8 +562,70 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           StretchBlt (hdc, dstX, dstY, dstW, dstH,
                       memdc, 0, TOOLBAR_HEIGHT, width, height, SRCCOPY);
         } else {
-          BitBlt (hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, 
-                  ps.rcPaint.bottom - ps.rcPaint.top, memdc, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+          RECT cr;
+          GetClientRect (hwnd, &cr);
+          int clientW = cr.right;
+          int clientH = cr.bottom;
+          int barsH = STATUSBAR_HEIGHT + DISKBAR_HEIGHT;
+          int availH = clientH - TOOLBAR_HEIGHT - barsH;
+          if (availH < 0) availH = 0;
+          /* integer scale: largest integer factor that fits */
+          int scaleW = (width > 0) ? clientW / width : 1;
+          int scaleH = (height > 0) ? availH / height : 1;
+          int scale = (scaleW < scaleH) ? scaleW : scaleH;
+          if (scale < 1) scale = 1;
+          int dstW = width * scale;
+          int dstH = height * scale;
+          int emuX = (clientW - dstW) / 2;
+          if (emuX < 0) emuX = 0;
+          int emuY = TOOLBAR_HEIGHT + (availH - dstH) / 2;
+          if (emuY < TOOLBAR_HEIGHT) emuY = TOOLBAR_HEIGHT;
+          if (clientW > width || availH > height) {
+            /* window larger than base emulator: toolbar + dark margins + scaled emulator */
+            /* toolbar background (full width) */
+            RECT tbRect = {0, 0, clientW, TOOLBAR_HEIGHT};
+            FillRect (hdc, &tbRect, GetSysColorBrush (COLOR_3DFACE));
+            /* dark gray margin strips around scaled emulator area */
+            HBRUSH darkBrush = CreateSolidBrush (RGB (64, 64, 64));
+            int emuBottom = emuY + dstH;
+            int zoneBottom = TOOLBAR_HEIGHT + availH;
+            if (emuY > TOOLBAR_HEIGHT) { /* top margin */
+              RECT r = {0, TOOLBAR_HEIGHT, clientW, emuY};
+              FillRect (hdc, &r, darkBrush);
+            }
+            if (emuBottom < zoneBottom) { /* bottom margin */
+              RECT r = {0, emuBottom, clientW, zoneBottom};
+              FillRect (hdc, &r, darkBrush);
+            }
+            if (emuX > 0) { /* left margin */
+              RECT r = {0, emuY, emuX, emuBottom};
+              FillRect (hdc, &r, darkBrush);
+            }
+            if (emuX + dstW < clientW) { /* right margin */
+              RECT r = {emuX + dstW, emuY, clientW, emuBottom};
+              FillRect (hdc, &r, darkBrush);
+            }
+            DeleteObject (darkBrush);
+            /* scaled emulator area */
+            SetStretchBltMode (hdc, COLORONCOLOR);
+            StretchBlt (hdc, emuX, emuY, dstW, dstH,
+                        memdc, 0, TOOLBAR_HEIGHT, width, height, SRCCOPY);
+            /* statusbar (full width bg + indicators from memdc) */
+            int sbY = TOOLBAR_HEIGHT + availH;
+            RECT sbRect = {0, sbY, clientW, sbY + STATUSBAR_HEIGHT};
+            FillRect (hdc, &sbRect, GetSysColorBrush (COLOR_3DFACE));
+            BitBlt (hdc, 0, sbY, width, STATUSBAR_HEIGHT,
+                    memdc, 0, TOOLBAR_HEIGHT + height, SRCCOPY);
+            /* diskbar (full width bg + text from memdc) */
+            int dbY = sbY + STATUSBAR_HEIGHT;
+            RECT dbRect = {0, dbY, clientW, dbY + DISKBAR_HEIGHT};
+            FillRect (hdc, &dbRect, GetSysColorBrush (COLOR_3DFACE));
+            BitBlt (hdc, 0, dbY, width, DISKBAR_HEIGHT,
+                    memdc, 0, TOOLBAR_HEIGHT + height + STATUSBAR_HEIGHT, SRCCOPY);
+          } else {
+            BitBlt (hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left,
+                    ps.rcPaint.bottom - ps.rcPaint.top, memdc, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+          }
         }
         /* FPS overlay */
         if (showFps) {
@@ -544,7 +649,22 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             int dstX = (screenW - dstW) / 2;
             TextOut (hdc, dstX + dstW - 80, 5, fpsText, strlen (fpsText));
           } else {
-            TextOut (hdc, width - 80, TOOLBAR_HEIGHT + 5, fpsText, strlen (fpsText));
+            RECT cr;
+            GetClientRect (hwnd, &cr);
+            int clientW = cr.right;
+            int clientH = cr.bottom;
+            int barsH = STATUSBAR_HEIGHT + DISKBAR_HEIGHT;
+            int availH = clientH - TOOLBAR_HEIGHT - barsH;
+            if (availH < 0) availH = 0;
+            int scaleW = (width > 0) ? clientW / width : 1;
+            int scaleH = (height > 0) ? availH / height : 1;
+            int fpsScale = (scaleW < scaleH) ? scaleW : scaleH;
+            if (fpsScale < 1) fpsScale = 1;
+            int fpsDstW = width * fpsScale;
+            int fpsDstH = height * fpsScale;
+            int fpsEmuX = (clientW - fpsDstW) / 2;
+            int fpsEmuY = TOOLBAR_HEIGHT + (availH - fpsDstH) / 2;
+            TextOut (hdc, fpsEmuX + fpsDstW - 80, fpsEmuY + 5, fpsText, strlen (fpsText));
           }
           SelectObject (hdc, oldFont);
           DeleteObject (font);
@@ -552,7 +672,11 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         EndPaint (hwnd, &ps);
       }
       break;
+    case WM_ERASEBKGND:
+      return TRUE; /* we paint the entire client area ourselves */
     case WM_SIZE:
+      /* repaint entire client on resize */
+      InvalidateRect (hwnd, NULL, FALSE);
       /* statusbar */
       SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
       PatBlt (memdc, 0, TOOLBAR_HEIGHT + height, width, STATUSBAR_HEIGHT, PATCOPY);
@@ -570,6 +694,37 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       diskLight (1, disk[1]);
       /* disk filename bar */
       updateDiskBar();
+      break;
+    case WM_GETMINMAXINFO:
+      {
+        MINMAXINFO *mmi = (MINMAXINFO *)lParam;
+        RECT adjRect = {0, 0, MIN_WINDOW_WIDTH, 200};
+        HMENU hMenu = GetMenu (hwnd);
+        AdjustWindowRectEx (&adjRect, WS_OVERLAPPEDWINDOW, hMenu != NULL, 0);
+        int minW = adjRect.right - adjRect.left;
+        int minH = 400;
+        if (mmi->ptMinTrackSize.x < minW) mmi->ptMinTrackSize.x = minW;
+        if (mmi->ptMinTrackSize.y < minH) mmi->ptMinTrackSize.y = minH;
+      }
+      break;
+    case WM_DROPFILES:
+      {
+        HDROP hDrop = (HDROP)wParam;
+        char dropPath[MAX_PATH];
+        if (DragQueryFile (hDrop, 0, dropPath, MAX_PATH)) {
+          /* Shift held = drive B, otherwise drive A */
+          int drive = (GetKeyState (VK_SHIFT) & 0x8000) ? 1 : 0;
+          LOG_I("Drag-drop disk %c: %s", 'A' + drive, dropPath);
+          loadDiskFromFile (drive, dropPath);
+        }
+        DragFinish (hDrop);
+      }
+      break;
+    case WM_CLOSE:
+      /* save position while window is still valid */
+      saveWindowPos();
+      mruSave();
+      DestroyWindow (hwnd);
       break;
     case WM_DESTROY:
       PostQuitMessage (0);
@@ -615,13 +770,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           DialogBox (appInst, "dialog", hwnd, (DLGPROC)DialogFunc);
           break;
         case IDM_OM:
-          MessageBox (hwnd, 
-                      "TIKI-100_emul v1.2.0 by Arctic Retro\n"
-                      "A freeware TIKI 100 Rev. C emulator.\n"
-                      "Z80 emulation copyright (C) Marat Fayzullin 1994,1995,1996,1997.\n"
-                      "Original code copyright (C) Asbjorn Djupdal 2000-2001.", 
-                      "About TIKI-100_emul",
-                      MB_OK);
+          showAboutDialog (hwnd);
           break;
         case IDM_HELP:
           MessageBox (hwnd,
@@ -639,7 +788,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                       MB_OK | MB_ICONINFORMATION);
           break;
         case IDM_AVSLUTT:
-          PostQuitMessage (0);
+          DestroyWindow (hwnd);
           break;
         case IDM_HENT_A:
           getDiskImage (0);
@@ -752,11 +901,25 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           InvalidateRect (hwnd, NULL, FALSE);
           LOG_I("FPS display %s", showFps ? "enabled" : "disabled");
           break;
+        case IDM_MRU_CLEAR:
+          mruCount = 0;
+          mruSave();
+          mruBuildMenu();
+          break;
 #ifdef DEBUG
         case IDM_MONITOR:
           trace();
           break;
 #endif
+        default:
+          /* check for MRU menu item clicks */
+          if (LOWORD (wParam) >= IDM_MRU_BASE && LOWORD (wParam) <= IDM_MRU_MAX) {
+            int idx = LOWORD (wParam) - IDM_MRU_BASE;
+            if (idx < mruCount) {
+              loadDiskFromFile (0, mruList[idx]);
+            }
+          }
+          break;
       }
     default:
       return DefWindowProc (hwnd, msg, wParam, lParam);
@@ -971,6 +1134,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 40, 1, 18, 128);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x1x18x128 from %s", 'A' + drive, path);
+      mruAdd (path);
       updateDiskBar();
       return TRUE;
     case 40*1*10*512:
@@ -979,6 +1143,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 40, 1, 10, 512);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x1x10x512 from %s", 'A' + drive, path);
+      mruAdd (path);
       updateDiskBar();
       return TRUE;
     case 40*2*10*512:
@@ -987,6 +1152,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 40, 2, 10, 512);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 40x2x10x512 from %s", 'A' + drive, path);
+      mruAdd (path);
       updateDiskBar();
       return TRUE;
     case 80*2*10*512:
@@ -995,6 +1161,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       insertDisk (drive, dsk[drive], 80, 2, 10, 512);
       diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
       LOG_I("Loaded disk %c: 80x2x10x512 from %s", 'A' + drive, path);
+      mruAdd (path);
       updateDiskBar();
       return TRUE;
     default:
@@ -1042,6 +1209,240 @@ static void saveDiskImage (int drive) {
       CloseHandle (hFile);
     }  
   }
+}
+/* About dialog window procedure */
+static LRESULT CALLBACK AboutWndProc (HWND hwndAbout, UINT msg, WPARAM wParam, LPARAM lParam) {
+  static HICON hLogo = NULL;
+  switch (msg) {
+    case WM_CREATE:
+      /* load 128x128 icon from the embedded resource */
+      hLogo = (HICON)LoadImage (appInst, "icon", IMAGE_ICON, 128, 128, LR_DEFAULTCOLOR);
+      /* GitHub link */
+      {
+        HWND hLink = CreateWindowEx (0, "SysLink",
+          "GitHub repo: <a href=\"https://github.com/ovesennet/Tiki-100-emulator\">https://github.com/ovesennet/Tiki-100-emulator</a>",
+          WS_CHILD | WS_VISIBLE,
+          168, 155, 380, 20,
+          hwndAbout, (HMENU)100, appInst, NULL);
+        SendMessage (hLink, WM_SETFONT, (WPARAM)GetStockObject (DEFAULT_GUI_FONT), TRUE);
+      }
+      break;
+    case WM_PAINT:
+      {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint (hwndAbout, &ps);
+        /* draw icon */
+        if (hLogo) DrawIconEx (hdc, 20, 20, hLogo, 128, 128, 0, NULL, DI_NORMAL);
+        /* title */
+        SetBkMode (hdc, TRANSPARENT);
+        SetTextColor (hdc, GetSysColor (COLOR_BTNTEXT));
+        HFONT titleFont = CreateFont (24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+          CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, "Segoe UI");
+        HFONT oldFont = SelectObject (hdc, titleFont);
+        TextOut (hdc, 168, 24, "TIKI-100 Emulator", 17);
+        DeleteObject (SelectObject (hdc, oldFont));
+        /* version */
+        HFONT verFont = CreateFont (18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+          CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, "Segoe UI");
+        oldFont = SelectObject (hdc, verFont);
+        SetTextColor (hdc, RGB (80, 80, 80));
+        {
+          char verText[64];
+          snprintf (verText, sizeof (verText), "Version %s  \"Arctic Retro\"", VERSION_STR);
+          TextOut (hdc, 168, 54, verText, strlen (verText));
+        }
+        DeleteObject (SelectObject (hdc, oldFont));
+        /* info labels */
+        HFONT infoFont = CreateFont (14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+          ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+          CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, "Segoe UI");
+        oldFont = SelectObject (hdc, infoFont);
+        SetTextColor (hdc, GetSysColor (COLOR_BTNTEXT));
+        TextOut (hdc, 168, 90, "A freeware TIKI 100 Rev. C emulator.", 36);
+        TextOut (hdc, 168, 110, "Z80 emulation \251 Marat Fayzullin 1994-1997", 42);
+        TextOut (hdc, 168, 130, "Original code \251 Asbj\370rn Djupdal 2000-2001", 43);
+        DeleteObject (SelectObject (hdc, oldFont));
+        EndPaint (hwndAbout, &ps);
+      }
+      break;
+    case WM_NOTIFY:
+      {
+        NMHDR *nmh = (NMHDR *)lParam;
+        if (nmh->code == NM_CLICK || nmh->code == NM_RETURN) {
+          ShellExecute (NULL, "open", "https://github.com/ovesennet/Tiki-100-emulator", NULL, NULL, SW_SHOWNORMAL);
+        }
+      }
+      break;
+    case WM_COMMAND:
+      if (LOWORD (wParam) == IDOK || LOWORD (wParam) == IDCANCEL)
+        DestroyWindow (hwndAbout);
+      break;
+    case WM_KEYDOWN:
+      if (wParam == VK_ESCAPE || wParam == VK_RETURN)
+        DestroyWindow (hwndAbout);
+      break;
+    case WM_DESTROY:
+      if (hLogo) { DestroyIcon (hLogo); hLogo = NULL; }
+      break;
+    default:
+      return DefWindowProc (hwndAbout, msg, wParam, lParam);
+  }
+  return 0;
+}
+static void showAboutDialog (HWND parent) {
+  static int registered = 0;
+  if (!registered) {
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc = AboutWndProc;
+    wc.hInstance = appInst;
+    wc.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
+    wc.lpszClassName = "AboutTikiClass";
+    wc.hCursor = LoadCursor (NULL, IDC_ARROW);
+    RegisterClass (&wc);
+    registered = 1;
+  }
+  /* center on parent */
+  RECT pr;
+  GetWindowRect (parent, &pr);
+  int w = 520, h = 220;
+  int x = pr.left + ((pr.right - pr.left) - w) / 2;
+  int y = pr.top + ((pr.bottom - pr.top) - h) / 2;
+  HWND hab = CreateWindowEx (WS_EX_DLGMODALFRAME, "AboutTikiClass", "About TIKI-100 Emulator",
+    WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+    x, y, w, h, parent, NULL, appInst, NULL);
+  /* simple modal message loop */
+  EnableWindow (parent, FALSE);
+  MSG msg;
+  while (GetMessage (&msg, NULL, 0, 0)) {
+    if (!IsWindow (hab)) break;
+    TranslateMessage (&msg);
+    DispatchMessage (&msg);
+  }
+  EnableWindow (parent, TRUE);
+  SetForegroundWindow (parent);
+}
+/* Get path to INI file (same directory as exe) */
+static void getIniPath (char *buf, int bufSize) {
+  GetModuleFileName (NULL, buf, bufSize);
+  char *slash = strrchr (buf, '\\');
+  if (slash) *(slash + 1) = '\0';
+  strncat (buf, INI_FILENAME, bufSize - strlen (buf) - 1);
+}
+/* Add a path to the MRU list (move to top if already present) */
+static void mruAdd (const char *path) {
+  int i;
+  /* check if already in list */
+  for (i = 0; i < mruCount; i++) {
+    if (_stricmp (mruList[i], path) == 0) {
+      /* move to top */
+      char tmp[MAX_PATH];
+      strncpy (tmp, mruList[i], MAX_PATH - 1); tmp[MAX_PATH - 1] = '\0';
+      memmove (&mruList[1], &mruList[0], i * sizeof (mruList[0]));
+      strncpy (mruList[0], tmp, MAX_PATH - 1); mruList[0][MAX_PATH - 1] = '\0';
+      mruBuildMenu();
+      return;
+    }
+  }
+  /* shift down and insert at top */
+  if (mruCount < MRU_MAX_ENTRIES) mruCount++;
+  memmove (&mruList[1], &mruList[0], (mruCount - 1) * sizeof (mruList[0]));
+  strncpy (mruList[0], path, MAX_PATH - 1); mruList[0][MAX_PATH - 1] = '\0';
+  mruBuildMenu();
+}
+/* Load MRU list from INI file */
+static void mruLoad (void) {
+  char key[16];
+  int i;
+  mruCount = 0;
+  for (i = 0; i < MRU_MAX_ENTRIES; i++) {
+    snprintf (key, sizeof (key), "MRU%d", i);
+    char val[MAX_PATH] = "";
+    GetPrivateProfileString ("RecentDisks", key, "", val, MAX_PATH, iniPath);
+    if (val[0]) {
+      strncpy (mruList[mruCount], val, MAX_PATH - 1);
+      mruList[mruCount][MAX_PATH - 1] = '\0';
+      mruCount++;
+    }
+  }
+}
+/* Save MRU list to INI file */
+static void mruSave (void) {
+  char key[16];
+  int i;
+  /* clear old entries first */
+  WritePrivateProfileSection ("RecentDisks", NULL, iniPath);
+  for (i = 0; i < mruCount; i++) {
+    snprintf (key, sizeof (key), "MRU%d", i);
+    WritePrivateProfileString ("RecentDisks", key, mruList[i], iniPath);
+  }
+}
+/* Build the MRU submenu under "Disk drive" menu */
+static void mruBuildMenu (void) {
+  HMENU hMenu = GetMenu (hwnd);
+  if (!hMenu) return;
+  HMENU hDiskMenu = GetSubMenu (hMenu, 1);
+  if (!hDiskMenu) return;
+  /* remove existing MRU items */
+  int i;
+  for (i = IDM_MRU_BASE; i <= IDM_MRU_MAX; i++)
+    RemoveMenu (hDiskMenu, i, MF_BYCOMMAND);
+  RemoveMenu (hDiskMenu, IDM_MRU_CLEAR, MF_BYCOMMAND);
+  /* remove any trailing separators we previously added */
+  for (;;) {
+    int count = GetMenuItemCount (hDiskMenu);
+    if (count <= 0) break;
+    MENUITEMINFO mii = { sizeof (MENUITEMINFO), MIIM_FTYPE };
+    GetMenuItemInfo (hDiskMenu, count - 1, TRUE, &mii);
+    if (!(mii.fType & MFT_SEPARATOR)) break;
+    RemoveMenu (hDiskMenu, count - 1, MF_BYPOSITION);
+  }
+  if (mruCount > 0) {
+    AppendMenu (hDiskMenu, MF_SEPARATOR, 0, NULL);
+    for (i = 0; i < mruCount; i++) {
+      /* show just the filename */
+      const char *name = strrchr (mruList[i], '\\');
+      if (!name) name = strrchr (mruList[i], '/');
+      name = name ? name + 1 : mruList[i];
+      char label[MAX_PATH + 16];
+      snprintf (label, sizeof (label), "&%d %.260s", i + 1, name);
+      AppendMenu (hDiskMenu, MF_STRING, IDM_MRU_BASE + i, label);
+    }
+    AppendMenu (hDiskMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu (hDiskMenu, MF_STRING, IDM_MRU_CLEAR, "Clear recent list");
+  }
+  DrawMenuBar (hwnd);
+}
+/* Save window position to INI */
+static void saveWindowPos (void) {
+  if (isFullscreen) return;
+  RECT wr;
+  GetWindowRect (hwnd, &wr);
+  char buf[32];
+  snprintf (buf, sizeof (buf), "%d", (int)wr.left);
+  WritePrivateProfileString ("Window", "X", buf, iniPath);
+  snprintf (buf, sizeof (buf), "%d", (int)wr.top);
+  WritePrivateProfileString ("Window", "Y", buf, iniPath);
+}
+/* Load window position from INI */
+static void loadWindowPos (int *x, int *y) {
+  *x = GetPrivateProfileInt ("Window", "X", CW_USEDEFAULT, iniPath);
+  *y = GetPrivateProfileInt ("Window", "Y", CW_USEDEFAULT, iniPath);
+  /* validate position is on screen */
+  if (*x != CW_USEDEFAULT && *y != CW_USEDEFAULT) {
+    POINT pt = {*x, *y};
+    if (MonitorFromPoint (pt, MONITOR_DEFAULTTONULL) == NULL) {
+      *x = CW_USEDEFAULT;
+      *y = CW_USEDEFAULT;
+    }
+  }
+}
+/* Set dark title bar on Windows 10 build 18985+ */
+static void setDarkTitleBar (HWND hWnd) {
+  /* DWMWA_USE_IMMERSIVE_DARK_MODE = 20 */
+  BOOL darkMode = TRUE;
+  DwmSetWindowAttribute (hWnd, 20, &darkMode, sizeof (darkMode));
 }
 /* Toggle fullscreen mode */
 static void toggleFullscreen (void) {
@@ -1114,10 +1515,15 @@ void changeRes (int newRes) {
       break;
   }
   if (!isFullscreen) {
+    int clientW = width;
+    if (clientW < MIN_WINDOW_WIDTH) clientW = MIN_WINDOW_WIDTH;
+    int clientH = height + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT + DISKBAR_HEIGHT;
+    RECT adjRect = {0, 0, clientW, clientH};
+    HMENU hMenu = GetMenu (hwnd);
+    AdjustWindowRectEx (&adjRect, WS_OVERLAPPEDWINDOW, hMenu != NULL, 0);
     GetWindowRect (hwnd, &windowRect);
-    MoveWindow (hwnd, windowRect.left, windowRect.top, width + 2 * GetSystemMetrics (SM_CXFIXEDFRAME), 
-                height + TOOLBAR_HEIGHT + 2 * GetSystemMetrics (SM_CYFIXEDFRAME) + GetSystemMetrics (SM_CYCAPTION) +
-                GetSystemMetrics (SM_CYMENU) + STATUSBAR_HEIGHT + DISKBAR_HEIGHT, 1);
+    MoveWindow (hwnd, windowRect.left, windowRect.top,
+                adjRect.right - adjRect.left, adjRect.bottom - adjRect.top, 1);
   }
   /* slett bakgrunn */
   SelectObject (memdc, GetStockObject (BLACK_BRUSH));
@@ -1261,13 +1667,19 @@ void loopEmul (int ms) {
   if (updateWindow || showFps) {
     if (isFullscreen) {
       InvalidateRect (hwnd, NULL, FALSE);
-    } else if (showFps) {
-      /* invalidate only emulator + statusbar area, not toolbar */
-      RECT rect = {0, TOOLBAR_HEIGHT, width, TOOLBAR_HEIGHT + height + STATUSBAR_HEIGHT + DISKBAR_HEIGHT};
-      InvalidateRect (hwnd, &rect, FALSE);
     } else {
-      RECT rect = {xmin, ymin, xmax, ymax};
-      InvalidateRect (hwnd, &rect, FALSE);
+      RECT cr;
+      GetClientRect (hwnd, &cr);
+      int clientW = cr.right;
+      int clientH = cr.bottom;
+      if (clientW > width || clientH > (int)(height + TOOLBAR_HEIGHT + STATUSBAR_HEIGHT + DISKBAR_HEIGHT) || showFps) {
+        /* centered layout or FPS: invalidate full client below toolbar */
+        RECT rect = {0, TOOLBAR_HEIGHT, clientW, clientH};
+        InvalidateRect (hwnd, &rect, FALSE);
+      } else {
+        RECT rect = {xmin, ymin, xmax, ymax};
+        InvalidateRect (hwnd, &rect, FALSE);
+      }
     }
     xmin = (unsigned)~0, ymin = (unsigned)~0, xmax = 0, ymax = 0;
     updateWindow = FALSE;

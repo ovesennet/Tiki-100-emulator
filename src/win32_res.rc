@@ -7,6 +7,7 @@
 #include <windows.h>
 #include "win32_res.h"
 #include "TIKI-100_emul.h"
+#include "version.h"
 
 menu MENU {
    POPUP "&Emulator" {
@@ -35,7 +36,7 @@ menu MENU {
 
 dialog DIALOG DISCARDABLE  30, 30, 269, 137
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TIKI-100_emul settings"
+CAPTION "TIKI-100 Emulator settings"
 {
     DEFPUSHBUTTON   "OK", IDD_OK, 155, 114, 50, 14
     PUSHBUTTON      "Cancel", IDD_AVBRYT, 211, 114, 50, 14
@@ -60,3 +61,35 @@ CAPTION "TIKI-100_emul settings"
 }
 
 icon ICON win32.ico
+
+/* application manifest for visual styles + DPI */
+1 24 "tikiemul.exe.manifest"
+
+1 VERSIONINFO
+FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "Arctic Retro"
+            VALUE "FileDescription",  "TIKI-100 Emulator"
+            VALUE "FileVersion",      VERSION_STR
+            VALUE "InternalName",     "tikiemul"
+            VALUE "LegalCopyright",   "Arctic Retro - Copyright (C) Asbjørn Djupdal 2000-2001"
+            VALUE "OriginalFilename", "tikiemul.exe"
+            VALUE "ProductName",      "TIKI-100 Emulator"
+            VALUE "ProductVersion",   VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

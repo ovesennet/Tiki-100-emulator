@@ -12,7 +12,7 @@ CC = gcc
 CFLAGS = -Wall -O -DLSB_FIRST -Wno-multichar -Wno-overflow -Wno-pointer-to-int-cast $(Z80_DEBUGGER)
 
 NO_CONSOLE_ = -Wl,--subsystem,windows
-LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32 -lwinmm
+LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32 -lwinmm -ldwmapi
 
 #------------------------------------------------------------------------------
 # Rules
@@ -76,10 +76,10 @@ $(BINDIR)/memview.o : memview.c memview.h TIKI-100_emul.h Makefile | $(BINDIR)
 $(BINDIR)/diskview.o : diskview.c diskview.h TIKI-100_emul.h Makefile | $(BINDIR)
 	$(CC) -c $< -o $@ $(CFLAGS)
 
-$(BINDIR)/win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h screenshot.h z80info.h memview.h diskview.h Makefile | $(BINDIR)
+$(BINDIR)/win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h screenshot.h z80info.h memview.h diskview.h version.h Makefile | $(BINDIR)
 	$(CC) -c $< -o $@ $(CFLAGS) -fexec-charset=CP1252
 
-$(BINDIR)/win32_res.res : win32_res.rc win32_res.h win32.ico TIKI-100_emul.h Z80.h Makefile | $(BINDIR)
+$(BINDIR)/win32_res.res : win32_res.rc win32_res.h win32.ico TIKI-100_emul.h Z80.h version.h tikiemul.exe.manifest Makefile | $(BINDIR)
 	windres $< $(Z80_DEBUGGER) -O coff -o $@ --codepage=65001
 
 .PHONY : clean

@@ -5,6 +5,7 @@
  */
 
 #include "TIKI-100_emul.h"
+#include "version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,7 +159,7 @@ int main (int argc, char *argv[]) {
 
   /* feil i argumenter */
   if (argc > 1) {
-    printf ("TIKI-100_emul V1.1.1 brukes:\n"
+    printf ("TIKI-100 Emulator v" VERSION_STR " brukes:\n"
             "    tikiemul [-opsjoner...]\n"
             "\n"
             "Opsjoner:\n"
@@ -877,7 +878,7 @@ static void commandline (void) {
         return;
       } else if (!strcmp (cmd, "om")) {
         /* vis "om"-tekst */
-        puts ("\nTIKI-100_emul V1.1.1 - en freeware TIKI 100 Rev. C emulator.");
+        printf ("\nTIKI-100 Emulator v%s - en freeware TIKI 100 Rev. C emulator.\n", VERSION_STR);
         puts ("Z80 emulering copyright (C) Marat Fayzullin 1994,1995,1996,1997.");
         puts ("Resten copyright (C) Asbjørn Djupdal 2000-2001.\n");
       } else if (!strcmp (cmd, "q") || !strcmp (cmd, "avslutt")) {

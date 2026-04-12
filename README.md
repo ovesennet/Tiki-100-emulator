@@ -4,6 +4,12 @@ A freeware emulator for the **TIKI 100 Rev. C** computer, originally developed b
 
 > **Note:** This emulator is **Windows only**. It uses the native Win32 API for display, input, and serial/parallel port access.
 
+## Screenshots
+
+![Screenshot 1](img/screenshot1.png)
+![Screenshot 2](img/screenshot2.png)
+![Screenshot 3](img/screenshot3.png)
+
 The emulator includes:
 - Z80 CPU emulation (based on Marat Fayzullin's Z80 engine)
 - Video emulation (1024×256 high-res, 512×256 medium-res, 256×256 low-res modes)
@@ -11,7 +17,7 @@ The emulator includes:
 - Z80-CTC (Counter/Timer) emulation
 - Z80-DART (serial port) emulation
 - Keyboard emulation with Norwegian layout support
-- Sound/speaker emulation
+- Sound chip emulation (AY-3-8912 PSG — 3 tone channels, noise, envelopes)
 
 ## Prerequisites to build from the C source
 
@@ -87,6 +93,7 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 ### v1.2.0 (Arctic Retro)
 
 **New features:**
+- **AY-3-8912 sound chip emulation**: Full PSG audio with 3 tone channels, noise generator, envelope generator, and register write masking — output via waveOut API at 44100 Hz
 - **Toolbar**: Button row above the emulator screen area with quick-access tools
 - **Fullscreen mode**: Integer-scaled fullscreen with black bars, toggle via F12 or toolbar
 - **Screenshot to clipboard**: Copies the emulator screen to the clipboard (F11)
@@ -98,6 +105,11 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 - **Command-line disk loading**: Load disk images at startup with `-diska <path>` and `-diskb <path>`
 - **Debug logging**: Optional `-console` flag enables logging to stderr and `tikiemul.log`
 - **Help menu**: Keyboard shortcuts reference dialog
+- **Disk filename status bar**: New row at the bottom of the window showing `A: filename.dsk  B: filename.dsk` (or "not loaded") for each drive
+- **Minimum window size**: Low-res (40-column) mode enforces a 350px minimum width; the emulator area is centered with dark gray margins on all sides
+- **Custom About dialog**: Shows the application icon (128×128), version string, credits, and a clickable GitHub repository link
+- **EXE version information**: File properties now show version, description, and copyright via embedded VERSIONINFO resource
+- **Centralized version constant**: Single `version.h` header defines `VERSION_STR`, `VERSION_MAJOR/MINOR/PATCH` — used by the window title, About dialog, log messages, and EXE resource
 
 **FDC emulation fixes (200KB disk support):**
 - **Side select via port 0x1C bit 4**: The system register side select signal was previously ignored by the FDC emulation; READ_ADDR and WRITE_TRACK now use it
@@ -115,7 +127,17 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 - Fixed uninitialized `msg.wParam` return value in `WinMain`
 - Compiler warnings suppressed for third-party Z80 code
 
+**UI modernization:**
+- **Visual styles manifest**: Embedded application manifest enables Windows Common Controls v6 (modern button/dialog rendering)
+- **DPI awareness**: Per-Monitor V2 DPI awareness declared in manifest for crisp rendering on high-DPI displays
+- **Dark title bar**: Uses `DwmSetWindowAttribute` for immersive dark mode title bar on Windows 10/11
+- **Drag-and-drop disk loading**: Drop `.dsk` files onto the window to load into drive A: (hold Shift for drive B:)
+- **Most Recently Used (MRU) disk list**: Last 8 loaded disk images appear in the Disk drive menu for quick access; persisted to `tikiemul.ini`
+- **Resizable window with integer scaling**: Window is freely resizable; the emulator display scales to the largest integer multiple that fits, centered with dark gray margins
+- **Window position persistence**: Window position is saved to `tikiemul.ini` on exit and restored on next launch (validated to ensure it's on-screen)
+
 **Build/platform changes:**
+- Renamed all user-visible strings from "TIKI-100_emul" to "TIKI-100 Emulator"
 - Updated to v1.2.0, about dialog shows "v1.2.0 by Arctic Retro"
 - Simplified Makefile for Windows/MinGW only (removed Amiga and Unix targets); output to `bin/` directory
 - Amiga support removed (amiga.c, amiga.cd, amiga_icons/, amiga_translations/)
@@ -133,3 +155,7 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 ## License
 
 Freeware. Z80 emulation copyright © Marat Fayzullin 1994-1997. Remainder copyright © Asbjørn Djupdal 2000-2001.
+
+## Links
+
+- **GitHub**: [https://github.com/ovesennet/Tiki-100-emulator](https://github.com/ovesennet/Tiki-100-emulator)

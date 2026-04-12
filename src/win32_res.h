@@ -48,3 +48,8 @@
 #define IDM_Z80INFO         35
 #define IDM_MEMVIEW         36
 #define IDM_DISKVIEW        37
+
+/* MRU disk list menu IDs (38-45 = 8 slots) */
+#define IDM_MRU_BASE        38
+#define IDM_MRU_MAX         45
+#define IDM_MRU_CLEAR       46
