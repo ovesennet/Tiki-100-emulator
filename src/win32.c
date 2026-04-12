@@ -1103,6 +1103,9 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
     OPEN_EXISTING, 0, NULL);
   if (hFile == INVALID_HANDLE_VALUE) {
     LOG_W("Cannot open disk image: %s", path);
+    char msg[MAX_PATH + 64];
+    snprintf (msg, sizeof (msg), "Cannot open file:\n%.260s", path);
+    MessageBox (hwnd, msg, "Disk load error", MB_OK | MB_ICONERROR);
     return FALSE;
   }
   fileSize[drive] = GetFileSize (hFile, NULL);
@@ -1110,14 +1113,133 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
   dsk[drive] = NULL;
   if (!(dsk[drive] = (byte *)malloc (fileSize[drive]))) {
     CloseHandle (hFile);
+    MessageBox (hwnd, "Out of memory loading disk image.", "Disk load error", MB_OK | MB_ICONERROR);
     return FALSE;
   }
   DWORD dwRead;
   if (!ReadFile (hFile, dsk[drive], fileSize[drive], &dwRead, NULL)) {
     CloseHandle (hFile);
+    char msg[MAX_PATH + 64];
+    snprintf (msg, sizeof (msg), "Failed to read file:\n%.260s", path);
+    MessageBox (hwnd, msg, "Disk load error", MB_OK | MB_ICONERROR);
     return FALSE;
   }
   CloseHandle (hFile);
+  /* Check for Extended CPC DSK container format (used by z88dk etc.)
+   * and convert to raw sector image if detected. */
+  if (fileSize[drive] > 0x100 &&
+      memcmp (dsk[drive], "EXTENDED CPC DSK", 16) == 0) {
+    byte *src = dsk[drive];
+    int numTracks = src[0x30];
+    int numSides  = src[0x31];
+    int totalTracks = numTracks * numSides;
+    /* calculate raw image size from track info blocks */
+    DWORD rawSize = 0;
+    int t;
+    for (t = 0; t < totalTracks; t++) {
+      int trkSizeHi = src[0x34 + t];
+      if (trkSizeHi == 0) continue;
+      /* find this track's info block */
+      DWORD trkOff = 0x100;
+      int j;
+      for (j = 0; j < t; j++)
+        trkOff += src[0x34 + j] * 256;
+      if (trkOff + 0x18 > fileSize[drive]) break;
+      int numSectors = src[trkOff + 0x15];
+      int sizeCode   = src[trkOff + 0x14];
+      int sectBytes  = 128 << sizeCode;
+      rawSize += numSectors * sectBytes;
+    }
+    if (rawSize == 0 || t < totalTracks) {
+      LOG_W("Invalid Extended CPC DSK structure in %s", path);
+      /* fall through to size check which will show error */
+    } else {
+      byte *raw = (byte *)malloc (rawSize);
+      if (!raw) {
+        MessageBox (hwnd, "Out of memory converting CPC DSK.", "Disk load error", MB_OK | MB_ICONERROR);
+        free (dsk[drive]);
+        dsk[drive] = NULL;
+        return FALSE;
+      }
+      DWORD rawPos = 0;
+      DWORD trkOff = 0x100;
+      for (t = 0; t < totalTracks; t++) {
+        int trkSizeHi = src[0x34 + t];
+        if (trkSizeHi == 0) {
+          /* empty track — skip (shouldn't happen for valid disks) */
+          continue;
+        }
+        DWORD trkSize = trkSizeHi * 256;
+        if (trkOff + trkSize > fileSize[drive]) break;
+        int numSectors = src[trkOff + 0x15];
+        int sizeCode   = src[trkOff + 0x14];
+        int sectBytes  = 128 << sizeCode;
+        /* sector data starts at trkOff + 0x100 */
+        DWORD dataOff = trkOff + 0x100;
+        int s;
+        for (s = 0; s < numSectors && rawPos + sectBytes <= rawSize; s++) {
+          /* in Extended DSK, each sector can have its own size from the sector info table */
+          int actualLen = src[trkOff + 0x18 + s * 8 + 6] | (src[trkOff + 0x18 + s * 8 + 7] << 8);
+          if (actualLen == 0) actualLen = sectBytes;
+          if (dataOff + actualLen > fileSize[drive]) break;
+          /* copy sector data (use standard sector size for output) */
+          int copyLen = (actualLen < sectBytes) ? actualLen : sectBytes;
+          memcpy (raw + rawPos, src + dataOff, copyLen);
+          if (copyLen < sectBytes)
+            memset (raw + rawPos + copyLen, 0xE5, sectBytes - copyLen);
+          rawPos += sectBytes;
+          dataOff += actualLen;
+        }
+        trkOff += trkSize;
+      }
+      LOG_I("Converted Extended CPC DSK: %dT x %dS, %lu raw bytes from %s",
+            numTracks, numSides, (unsigned long)rawPos, path);
+      free (dsk[drive]);
+      dsk[drive] = raw;
+      fileSize[drive] = rawPos;
+    }
+  }
+  /* Also check for standard CPC DSK (non-extended, "MV - CPC" header) */
+  else if (fileSize[drive] > 0x100 &&
+           memcmp (dsk[drive], "MV - CPC", 8) == 0) {
+    byte *src = dsk[drive];
+    int numTracks = src[0x30];
+    int numSides  = src[0x31];
+    int trkSize   = src[0x32] | (src[0x33] << 8);  /* uniform track size */
+    int totalTracks = numTracks * numSides;
+    if (trkSize > 0x100) {
+      /* first track to get sector params */
+      int numSectors = src[0x100 + 0x15];
+      int sizeCode   = src[0x100 + 0x14];
+      int sectBytes  = 128 << sizeCode;
+      DWORD rawSize = (DWORD)totalTracks * numSectors * sectBytes;
+      byte *raw = (byte *)malloc (rawSize);
+      if (!raw) {
+        MessageBox (hwnd, "Out of memory converting CPC DSK.", "Disk load error", MB_OK | MB_ICONERROR);
+        free (dsk[drive]);
+        dsk[drive] = NULL;
+        return FALSE;
+      }
+      DWORD rawPos = 0;
+      int t;
+      for (t = 0; t < totalTracks && rawPos + numSectors * sectBytes <= rawSize; t++) {
+        DWORD trkOff = 0x100 + t * trkSize;
+        DWORD dataOff = trkOff + 0x100;
+        int s;
+        for (s = 0; s < numSectors; s++) {
+          if (dataOff + sectBytes > fileSize[drive]) break;
+          memcpy (raw + rawPos, src + dataOff, sectBytes);
+          rawPos += sectBytes;
+          dataOff += sectBytes;
+        }
+      }
+      LOG_I("Converted standard CPC DSK: %dT x %dS, %lu raw bytes from %s",
+            numTracks, numSides, (unsigned long)rawPos, path);
+      free (dsk[drive]);
+      dsk[drive] = raw;
+      fileSize[drive] = rawPos;
+    }
+  }
   /* extract just the filename from the full path */
   {
     const char *name = strrchr (path, '\\');
@@ -1166,9 +1288,20 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       return TRUE;
     default:
       LOG_W("Unsupported disk image size: %lu bytes (%s)", fileSize[drive], path);
+      {
+        char msg[MAX_PATH + 128];
+        snprintf (msg, sizeof (msg),
+          "Unsupported disk image size: %lu bytes.\n\n"
+          "Supported sizes: 90 KB, 200 KB, 400 KB, 800 KB.\n\n"
+          "File: %.260s", (unsigned long)fileSize[drive], path);
+        MessageBox (hwnd, msg, "Disk load error", MB_OK | MB_ICONWARNING);
+      }
+      free (dsk[drive]);
+      dsk[drive] = NULL;
       removeDisk (drive);
       fileSize[drive] = 0;
       if (drive == 0) diskNameA[0] = '\0'; else diskNameB[0] = '\0';
+      updateDiskBar();
       return FALSE;
   }
 }
