@@ -1,6 +1,6 @@
 # Build output
-bin/
-*.exe
+bin/*
+!bin/tiki.rom
 
 # Object files
 *.o
