@@ -1346,16 +1346,19 @@ static void saveDiskImage (int drive) {
 /* About dialog window procedure */
 static LRESULT CALLBACK AboutWndProc (HWND hwndAbout, UINT msg, WPARAM wParam, LPARAM lParam) {
   static HICON hLogo = NULL;
+  static HBITMAP hTikiBmp = NULL;
   switch (msg) {
     case WM_CREATE:
       /* load 128x128 icon from the embedded resource */
       hLogo = (HICON)LoadImage (appInst, "icon", IMAGE_ICON, 128, 128, LR_DEFAULTCOLOR);
+      /* load tiki bitmap */
+      hTikiBmp = (HBITMAP)LoadImage (appInst, "tikibmp", IMAGE_BITMAP, 0, 0, LR_DEFAULTCOLOR);
       /* GitHub link */
       {
         HWND hLink = CreateWindowEx (0, "SysLink",
           "GitHub repo: <a href=\"https://github.com/ovesennet/Tiki-100-emulator\">https://github.com/ovesennet/Tiki-100-emulator</a>",
           WS_CHILD | WS_VISIBLE,
-          168, 155, 380, 20,
+          168, 150, 250, 36,
           hwndAbout, (HMENU)100, appInst, NULL);
         SendMessage (hLink, WM_SETFONT, (WPARAM)GetStockObject (DEFAULT_GUI_FONT), TRUE);
       }
@@ -1397,6 +1400,20 @@ static LRESULT CALLBACK AboutWndProc (HWND hwndAbout, UINT msg, WPARAM wParam, L
         TextOut (hdc, 168, 110, "Z80 emulation \251 Marat Fayzullin 1994-1997", 42);
         TextOut (hdc, 168, 130, "Original code \251 Asbj\370rn Djupdal 2000-2001", 43);
         DeleteObject (SelectObject (hdc, oldFont));
+        /* draw tiki bitmap at the right edge */
+        if (hTikiBmp) {
+          RECT cr;
+          GetClientRect (hwndAbout, &cr);
+          BITMAP bm;
+          GetObject (hTikiBmp, sizeof (bm), &bm);
+          int bmpX = cr.right - bm.bmWidth;
+          int bmpY = 0;
+          HDC hdcMem = CreateCompatibleDC (hdc);
+          HBITMAP oldBmp = SelectObject (hdcMem, hTikiBmp);
+          BitBlt (hdc, bmpX, bmpY, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
+          SelectObject (hdcMem, oldBmp);
+          DeleteDC (hdcMem);
+        }
         EndPaint (hwndAbout, &ps);
       }
       break;
@@ -1418,6 +1435,7 @@ static LRESULT CALLBACK AboutWndProc (HWND hwndAbout, UINT msg, WPARAM wParam, L
       break;
     case WM_DESTROY:
       if (hLogo) { DestroyIcon (hLogo); hLogo = NULL; }
+      if (hTikiBmp) { DeleteObject (hTikiBmp); hTikiBmp = NULL; }
       break;
     default:
       return DefWindowProc (hwndAbout, msg, wParam, lParam);
@@ -1436,14 +1454,18 @@ static void showAboutDialog (HWND parent) {
     RegisterClass (&wc);
     registered = 1;
   }
-  /* center on parent */
+  /* center on parent — use AdjustWindowRectEx so client area is exactly 700x217 */
+  DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
+  DWORD exStyle = WS_EX_DLGMODALFRAME;
+  RECT rc = {0, 0, 625, 217};
+  AdjustWindowRectEx (&rc, style, FALSE, exStyle);
+  int w = rc.right - rc.left, h = rc.bottom - rc.top;
   RECT pr;
   GetWindowRect (parent, &pr);
-  int w = 520, h = 220;
   int x = pr.left + ((pr.right - pr.left) - w) / 2;
   int y = pr.top + ((pr.bottom - pr.top) - h) / 2;
-  HWND hab = CreateWindowEx (WS_EX_DLGMODALFRAME, "AboutTikiClass", "About TIKI-100 Emulator",
-    WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+  HWND hab = CreateWindowEx (exStyle, "AboutTikiClass", "About the TIKI-100 Emulator",
+    style | WS_VISIBLE,
     x, y, w, h, parent, NULL, appInst, NULL);
   /* simple modal message loop */
   EnableWindow (parent, FALSE);

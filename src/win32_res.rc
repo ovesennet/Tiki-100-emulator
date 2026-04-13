@@ -61,6 +61,7 @@ CAPTION "TIKI-100 Emulator settings"
 }
 
 icon ICON win32.ico
+tikibmp BITMAP "..\\img\\tiki.bmp"
 
 /* application manifest for visual styles + DPI */
 1 24 "tikiemul.exe.manifest"

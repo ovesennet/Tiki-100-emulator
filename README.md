@@ -4,6 +4,8 @@ A freeware emulator for the **TIKI 100 Rev. C** computer, originally developed b
 
 > **Note:** This emulator is **Windows only**. It uses the native Win32 API for display, input, and serial/parallel port access.
 
+ > **Note:** The original source code for Windows and Amiga can be found in the 'original' folder.
+
 ## Screenshots
 
 ![Screenshot 1](img/screenshot1.png)
