@@ -133,6 +133,9 @@ void grafikkLight (tiki_bool status);
 /* Tenn/slukk disk lys for gitt stasjon */
 void diskLight (int drive, tiki_bool status);
 
+/* Tenn/slukk HDD aktivitetslys for gitt stasjon */
+void hddLight (int drive, tiki_bool status);
+
 /* Sjekk status til hver av de gitte tastene
  * Sett bit n i returkode hvis tast n IKKE er nedtrykt
  * Taster er enten ascii-kode eller en av konstantene over
@@ -176,6 +179,15 @@ void insertDisk (int drive, byte *diskImage, int tracks,
 
 /* Fjern diskett fra stasjon (0 eller 1) */
 void removeDisk (int drive);
+
+/* Monter hard-disk image (rå 8 MB CP/M image, lest/skriv hvis filen er
+ * skrivbar, ellers skrivebeskyttet). Returnerer TRUE ved suksess.
+ * drive: 0 eller 1 (TIKI-100 har maks to fysiske hard-diskstasjoner)
+ */
+tiki_bool insertHdd (int drive, const char *path);
+
+/* Avmonter hard-disk fra stasjon (0 eller 1) */
+void removeHdd (int drive);
 
 /* Resetter TIKI-100 */
 void resetEmul (void);

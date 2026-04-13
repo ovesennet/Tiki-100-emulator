@@ -135,6 +135,30 @@ void OutZ80 (register word port, register byte value) {
     case 0x1b:  /* ctc kanal 3 */
       writeCtc3 (value);
       break;
+    case 0x20:  /* hdd data */
+      hddWriteData (value);
+      break;
+    case 0x21:  /* hdd precomp */
+      hddWritePrecomp (value);
+      break;
+    case 0x22:  /* hdd sektortelling */
+      hddWriteSectorCount (value);
+      break;
+    case 0x23:  /* hdd sektornummer */
+      hddWriteSector (value);
+      break;
+    case 0x24:  /* hdd spor lav */
+      hddWriteTrackLo (value);
+      break;
+    case 0x25:  /* hdd spor høy */
+      hddWriteTrackHi (value);
+      break;
+    case 0x26:  /* hdd SDH */
+      hddWriteSDH (value);
+      break;
+    case 0x27:  /* hdd kommando */
+      hddWriteCommand (value);
+      break;
     case 0x1c:  /* system-register */
     case 0x1d:
     case 0x1e:
@@ -198,6 +222,18 @@ byte InZ80 (register word port) {
       return readCtc2();
     case 0x1b:  /* ctc kanal 3 */
       return readCtc3();
+    case 0x20:  /* hdd data */
+      return hddReadData();
+    case 0x21:  /* hdd feilregister */
+      return hddReadError();
+    case 0x22:  /* hdd sektortelling */
+      return hddReadSectorCount();
+    case 0x23:  /* hdd sektornummer */
+      return hddReadSector();
+    case 0x24:  /* hdd spor lav */
+      return hddReadTrackLo();
+    case 0x27:  /* hdd status */
+      return hddReadStatus();
     default:
       return 0xff;
   }

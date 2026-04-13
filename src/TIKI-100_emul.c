@@ -60,6 +60,7 @@ word LoopZ80 (register Z80 *R) {
 /* reset emulator */
 void resetEmul (void) {
   OutZ80 (0x1c, 0x00);
+  hddReset ();
   ResetZ80 (&cpu);
 }
 /* avslutt emulator */
