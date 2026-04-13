@@ -42,6 +42,12 @@ static tiki_bool loadDiskFromFile (int drive, const char *path);
 static void draw3dBox (int x, int y, int w, int h);
 static void getDiskImage (int drive);
 static void getHddImage (int drive);
+static tiki_bool hddAnyMounted (void);
+static void hddUpdateFloppyAMenuState (void);
+static void hddIniLoad (void);
+static void hddIniSave (void);
+static void hddLedTick (void);
+static void drawHddLight (int drive, tiki_bool status);
 static void saveDiskImage (int drive);
 static void setParam (HANDLE portHandle, struct serParams *params);
 static void toggleFullscreen (void);
@@ -117,6 +123,19 @@ static tiki_bool updateWindow = FALSE;
 static tiki_bool lock = FALSE;
 static tiki_bool grafikk = FALSE;
 static tiki_bool disk[2] = {FALSE, FALSE};
+
+/* HDD mount paths (empty string = not mounted). Persisted in
+ * tikiemul.ini [HardDisks] section so the emulator auto-remounts the
+ * same images on next launch. Updated by the menu/cmdline mount path. */
+static char hddPath0[MAX_PATH] = "";
+static char hddPath1[MAX_PATH] = "";
+
+/* HDD activity LEDs: GetTickCount() deadline at which each LED should
+ * turn off. When hdd.c signals activity, we refresh the deadline to
+ * NOW + HDD_LED_MS so short bursts stay visible to the eye. */
+#define HDD_LED_MS  80
+static DWORD hddLedOnUntil[2] = {0, 0};
+static tiki_bool hddLed[2] = {FALSE, FALSE};
 static HANDLE port1;
 static HANDLE port2;
 static HANDLE port3;
@@ -239,55 +258,33 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
    * fresh mount. */
   hddInit ();
 
-  /* parse command-line disk image arguments */
+  /* auto-remount HDDs from the [HardDisks] INI section */
+  hddIniLoad ();
+
+  /* Parse command-line disk image arguments.
+   * HDD (-hd0 / -hd1) is parsed BEFORE floppy (-diska / -diskb) so the
+   * "HDD blocks floppy A" rule is applied consistently: if both are
+   * specified on the command line, HDD wins and -diska is rejected. */
   {
     char *p;
-    char path[260];
+    char path[MAX_PATH];
     int i;
-    if ((p = strstr (lpszArgs, "-diska")) != NULL) {
-      p += 6;
-      while (*p == ' ') p++;
-      /* handle quoted paths */
-      if (*p == '"') {
-        p++;
-        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
-      } else {
-        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
-      }
-      path[i] = '\0';
-      if (i > 0) {
-        LOG_I("Command-line disk A: %s", path);
-        loadDiskFromFile (0, path);
-      }
-    }
-    if ((p = strstr (lpszArgs, "-diskb")) != NULL) {
-      p += 6;
-      while (*p == ' ') p++;
-      if (*p == '"') {
-        p++;
-        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
-      } else {
-        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
-      }
-      path[i] = '\0';
-      if (i > 0) {
-        LOG_I("Command-line disk B: %s", path);
-        loadDiskFromFile (1, path);
-      }
-    }
     if ((p = strstr (lpszArgs, "-hd0")) != NULL) {
       p += 4;
       while (*p == ' ') p++;
       if (*p == '"') {
         p++;
-        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != '"'; i++) path[i] = *p++;
       } else {
-        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != ' '; i++) path[i] = *p++;
       }
       path[i] = '\0';
       if (i > 0) {
         LOG_I("Command-line HDD 0: %s", path);
-        insertHdd (0, path);
+        if (insertHdd (0, path)) {
+          strncpy (hddPath0, path, MAX_PATH - 1);
+          hddPath0[MAX_PATH - 1] = '\0';
+        }
       }
     }
     if ((p = strstr (lpszArgs, "-hd1")) != NULL) {
@@ -295,17 +292,58 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
       while (*p == ' ') p++;
       if (*p == '"') {
         p++;
-        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != '"'; i++) path[i] = *p++;
       } else {
-        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != ' '; i++) path[i] = *p++;
       }
       path[i] = '\0';
       if (i > 0) {
         LOG_I("Command-line HDD 1: %s", path);
-        insertHdd (1, path);
+        if (insertHdd (1, path)) {
+          strncpy (hddPath1, path, MAX_PATH - 1);
+          hddPath1[MAX_PATH - 1] = '\0';
+        }
+      }
+    }
+    if ((p = strstr (lpszArgs, "-diska")) != NULL) {
+      p += 6;
+      while (*p == ' ') p++;
+      /* handle quoted paths */
+      if (*p == '"') {
+        p++;
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != '"'; i++) path[i] = *p++;
+      } else {
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != ' '; i++) path[i] = *p++;
+      }
+      path[i] = '\0';
+      if (i > 0) {
+        if (hddAnyMounted ()) {
+          LOG_W("Command-line -diska %s ignored: an HDD is already mounted", path);
+        } else {
+          LOG_I("Command-line disk A: %s", path);
+          loadDiskFromFile (0, path);
+        }
+      }
+    }
+    if ((p = strstr (lpszArgs, "-diskb")) != NULL) {
+      p += 6;
+      while (*p == ' ') p++;
+      if (*p == '"') {
+        p++;
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != '"'; i++) path[i] = *p++;
+      } else {
+        for (i = 0; i < MAX_PATH - 1 && *p && *p != ' '; i++) path[i] = *p++;
+      }
+      path[i] = '\0';
+      if (i > 0) {
+        LOG_I("Command-line disk B: %s", path);
+        loadDiskFromFile (1, path);
       }
     }
   }
+
+  /* Apply the initial "HDD present -> floppy A locked" menu state. */
+  hddUpdateFloppyAMenuState ();
   
   /* initialiser lyd */
   soundInit();
@@ -722,14 +760,18 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       /* tegn småbokser */
       draw3dBox (20, TOOLBAR_HEIGHT + height + 5, 9, 9);
       draw3dBox (40, TOOLBAR_HEIGHT + height + 5, 9, 9);
-      draw3dBox (60, TOOLBAR_HEIGHT + height + 5, 9, 9);
-      draw3dBox (80, TOOLBAR_HEIGHT + height + 5, 9, 9);
+      draw3dBox (60,  TOOLBAR_HEIGHT + height + 5, 9, 9);
+      draw3dBox (80,  TOOLBAR_HEIGHT + height + 5, 9, 9);
+      draw3dBox (100, TOOLBAR_HEIGHT + height + 5, 9, 9);
+      draw3dBox (120, TOOLBAR_HEIGHT + height + 5, 9, 9);
       
       /* oppdater diodelys */
       lockLight (lock);
       grafikkLight (grafikk);
       diskLight (0, disk[0]);
       diskLight (1, disk[1]);
+      drawHddLight (0, hddLed[0]);
+      drawHddLight (1, hddLed[1]);
       /* disk filename bar */
       updateDiskBar();
       break;
@@ -752,8 +794,15 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         if (DragQueryFile (hDrop, 0, dropPath, MAX_PATH)) {
           /* Shift held = drive B, otherwise drive A */
           int drive = (GetKeyState (VK_SHIFT) & 0x8000) ? 1 : 0;
-          LOG_I("Drag-drop disk %c: %s", 'A' + drive, dropPath);
-          loadDiskFromFile (drive, dropPath);
+          if (drive == 0 && hddAnyMounted ()) {
+            LOG_W("Drag-drop disk A ignored: an HDD is mounted");
+            MessageBox (hwnd,
+                        "Cannot load floppy A while a hard disk is mounted.",
+                        "TIKI-100 Emulator", MB_OK | MB_ICONINFORMATION);
+          } else {
+            LOG_I("Drag-drop disk %c: %s", 'A' + drive, dropPath);
+            loadDiskFromFile (drive, dropPath);
+          }
         }
         DragFinish (hDrop);
       }
@@ -762,6 +811,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       /* save position while window is still valid */
       saveWindowPos();
       mruSave();
+      hddIniSave();
       DestroyWindow (hwnd);
       break;
     case WM_DESTROY:
@@ -820,8 +870,11 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                       "Status bar lights (bottom left):\n\n"
                       "1\tLOCK key active\n"
                       "2\tGRAFIKK (graphics) mode active\n"
-                      "3\tDrive A activity\n"
-                      "4\tDrive B activity\n",
+                      "3\tFloppy A activity\n"
+                      "4\tFloppy B activity\n"
+                      "5\tHDD 0 activity\n"
+                      "6\tHDD 1 activity\n"
+                      "\nNote: loading floppy A is disabled while any HDD is mounted.\n",
                       "TIKI-100 Emulator - Keyboard shortcuts",
                       MB_OK | MB_ICONINFORMATION);
           break;
@@ -862,10 +915,14 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           break;
         case IDM_FJERN_HDD0:
           removeHdd (0);
+          hddPath0[0] = '\0';
+          hddUpdateFloppyAMenuState ();
           LOG_I ("Ejected HDD 0 from menu");
           break;
         case IDM_FJERN_HDD1:
           removeHdd (1);
+          hddPath1[0] = '\0';
+          hddUpdateFloppyAMenuState ();
           LOG_I ("Ejected HDD 1 from menu");
           break;
         case IDM_Z80INFO:
@@ -1229,6 +1286,16 @@ static void getDiskImage (int drive) {
   OPENFILENAME fname;
   char fn[256] = "\0";
 
+  /* Refuse to mount floppy A while an HDD is active — the BIOS boots
+   * floppy A first, which would prevent the HDD from ever being used. */
+  if (drive == 0 && hddAnyMounted ()) {
+    MessageBox (hwnd,
+                "Cannot load floppy A while a hard disk is mounted.\n\n"
+                "Eject the hard disks first if you want to boot from floppy.",
+                "TIKI-100 Emulator", MB_OK | MB_ICONINFORMATION);
+    return;
+  }
+
   memset (&fname, 0, sizeof (OPENFILENAME));
   fname.lStructSize = sizeof (OPENFILENAME);
   fname.hwndOwner = hwnd;
@@ -1243,7 +1310,7 @@ static void getDiskImage (int drive) {
 /* hent inn hard-disk image fra fil */
 static void getHddImage (int drive) {
   OPENFILENAME fname;
-  char fn[260] = "\0";
+  char fn[MAX_PATH] = "\0";
 
   memset (&fname, 0, sizeof (OPENFILENAME));
   fname.lStructSize = sizeof (OPENFILENAME);
@@ -1256,6 +1323,10 @@ static void getHddImage (int drive) {
 
   if (GetOpenFileName (&fname)) {
     if (insertHdd (drive, fn)) {
+      char *dst = drive ? hddPath1 : hddPath0;
+      strncpy (dst, fn, MAX_PATH - 1);
+      dst[MAX_PATH - 1] = '\0';
+      hddUpdateFloppyAMenuState ();
       LOG_I ("Mounted HDD %d from menu: %s", drive, fn);
     } else {
       MessageBox (hwnd, "Failed to open HDD image.",
@@ -1702,6 +1773,8 @@ void haltMessagePump (void) {
  * ms er antall "emulerte" millisekunder siden forrige gang loopEmul ble kalt
  */
 void loopEmul (int ms) {
+  /* decay HDD activity LEDs so short bursts stay visible briefly */
+  hddLedTick();
   /* senk hastigheten */
   if (slowDown) {
     static tiki_bool firstTime = TRUE;
@@ -1862,13 +1935,104 @@ void diskLight (int drive, tiki_bool status) {
   update (61, TOOLBAR_HEIGHT + height + 6, 7, 7);
   disk[drive] = status;
 }
+/* Draw a single HDD activity LED. HDD 0 at x=101, HDD 1 at x=121,
+ * continuing the 20-pixel spacing used by the floppy LEDs (A=61, B=81). */
+static void drawHddLight (int drive, tiki_bool status) {
+  int x;
+  HBRUSH brush;
+  if (drive < 0 || drive > 1) return;
+  x = 101 + drive * 20;
+  brush = (status ? GetSysColorBrush (COLOR_HIGHLIGHT)
+                  : GetSysColorBrush (COLOR_3DFACE));
+  SelectObject (memdc, brush);
+  PatBlt (memdc, x, TOOLBAR_HEIGHT + height + 6, 7, 7, PATCOPY);
+  update (x, TOOLBAR_HEIGHT + height + 6, 7, 7);
+  hddLed[drive] = status;
+}
+
 /* Tenn/slukk HDD aktivitetslys for gitt stasjon.
- * Stub-implementasjon: ingen LED-tegning enda — det kommer i neste commit
- * sammen med Hard disk-menyen og diskbjelke-utvidelsen. Finnes kun for at
- * hdd.c skal kunne kalle callback'en og linkingen skal gå igjennom. */
+ * Called from hdd.c at the start and end of each sector transfer. We
+ * only act on the TRUE transitions and set a GetTickCount-based decay
+ * deadline so short bursts stay visible on screen. The OFF transition
+ * happens from hddLedTick() via the periodic loopEmul() callback. */
 void hddLight (int drive, tiki_bool status) {
-  (void)drive;
-  (void)status;
+  if (drive < 0 || drive > 1) return;
+  if (status) {
+    hddLedOnUntil[drive] = GetTickCount () + HDD_LED_MS;
+    if (!hddLed[drive]) {
+      drawHddLight (drive, TRUE);
+    }
+  }
+}
+
+/* Called from loopEmul() on every emulated-time slice. Checks whether
+ * any HDD LED's decay deadline has expired and turns it off. */
+static void hddLedTick (void) {
+  DWORD now;
+  int i;
+  now = GetTickCount ();
+  for (i = 0; i < 2; i++) {
+    if (hddLed[i] && hddLedOnUntil[i] != 0
+        && (long)(now - hddLedOnUntil[i]) >= 0) {
+      hddLedOnUntil[i] = 0;
+      drawHddLight (i, FALSE);
+    }
+  }
+}
+
+/* Return TRUE if any HDD slot currently has an image mounted. Used to
+ * gate floppy-A loading and to decide what to persist in the INI. */
+static tiki_bool hddAnyMounted (void) {
+  return (hddPath0[0] != '\0') || (hddPath1[0] != '\0');
+}
+
+/* Gray out or re-enable the "Load disk A..." menu item based on HDD
+ * mount state. The rule: if any HDD is mounted, floppy A is locked. */
+static void hddUpdateFloppyAMenuState (void) {
+  HMENU hMenu;
+  UINT flag;
+  if (!hwnd) return;
+  hMenu = GetMenu (hwnd);
+  if (!hMenu) return;
+  flag = hddAnyMounted () ? MF_GRAYED : MF_ENABLED;
+  EnableMenuItem (hMenu, IDM_HENT_A, MF_BYCOMMAND | flag);
+}
+
+/* Load last-mounted HDD paths from tikiemul.ini [HardDisks] section.
+ * Called once at startup, after mruLoad(). Silently ignores missing
+ * files so a moved/renamed image doesn't block the emulator. */
+static void hddIniLoad (void) {
+  char val[MAX_PATH];
+  GetPrivateProfileString ("HardDisks", "HD0", "", val, MAX_PATH, iniPath);
+  if (val[0]) {
+    if (insertHdd (0, val)) {
+      strncpy (hddPath0, val, MAX_PATH - 1);
+      hddPath0[MAX_PATH - 1] = '\0';
+      LOG_I("Auto-remounted HDD 0: %s", val);
+    } else {
+      LOG_W("Auto-remount HDD 0 failed: %s", val);
+    }
+  }
+  GetPrivateProfileString ("HardDisks", "HD1", "", val, MAX_PATH, iniPath);
+  if (val[0]) {
+    if (insertHdd (1, val)) {
+      strncpy (hddPath1, val, MAX_PATH - 1);
+      hddPath1[MAX_PATH - 1] = '\0';
+      LOG_I("Auto-remounted HDD 1: %s", val);
+    } else {
+      LOG_W("Auto-remount HDD 1 failed: %s", val);
+    }
+  }
+}
+
+/* Persist current HDD mount paths to tikiemul.ini on shutdown. Empty
+ * slots are written as empty strings so the next startup knows the
+ * slot was deliberately unmounted. */
+static void hddIniSave (void) {
+  WritePrivateProfileString ("HardDisks", "HD0",
+                             hddPath0[0] ? hddPath0 : NULL, iniPath);
+  WritePrivateProfileString ("HardDisks", "HD1",
+                             hddPath1[0] ? hddPath1 : NULL, iniPath);
 }
 static void update (int x, int y, int w, int h) {
   if (xmin > x) xmin = x;
