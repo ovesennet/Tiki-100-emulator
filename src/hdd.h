@@ -26,7 +26,7 @@
 
 #include "TIKI-100_emul.h"  /* byte, word via Z80.h + tiki_bool */
 
-/* Geometry constants — matches the ronny-tiki100 reference implementation. */
+/* Geometry constants  */
 #define HDD_SECTOR_SIZE     512
 #define HDD_MAX_TRACKS      256
 #define HDD_MAX_SECTORS     16
