@@ -173,6 +173,33 @@ void hddUnmount (int diskNo) {
 }
 
 /*****************************************************************************/
+/* Stasjonsnærvær / "drive-present" check                                    */
+/*****************************************************************************/
+
+/* Is the drive currently addressed by the SDH register actually mounted?
+ *
+ * Used by the port read/write functions below to make the controller look
+ * like "the WD1010 chip isn't installed" when no image is mounted on the
+ * selected drive. On real TIKI-100 hardware, if the HDD chip or the drive
+ * is absent, reading any of the WD1010 ports returns 0xFF (the data bus
+ * floats high because nothing drives it). The TIKI-100 BIOS probe relies
+ * on this: it writes the sector number to port 0x23 and reads it back; if
+ * the readback isn't what it wrote, the probe bails out cleanly.
+ *
+ * When we emulate a real WD1010 state machine without an image, the probe
+ * DOES see a correct readback (because we store the written value), so it
+ * goes further, issues a READ SECTOR, reads 512 bytes of our buffer, and
+ * jumps to execute the garbage as code - eventually landing in the BIOS
+ * "UDEFINERT INTERRUPT" handler. The cure is to report "no chip" for any
+ * drive that isn't mounted, matching real hardware exactly.
+ */
+static tiki_bool hddSelectedDriveMounted (void) {
+  int head  = hddSDH & 0x07;
+  int drive = (head >= 2) ? 1 : 0;
+  return (drive >= 0 && drive < HDD_MAX_DISKS && hddDisc[drive] != NULL);
+}
+
+/*****************************************************************************/
 /* Offsetberegning — TIKI-100-spesifikk                                      */
 /*****************************************************************************/
 
@@ -366,6 +393,7 @@ void hddWriteData (byte value) {
 
 byte hddReadData (void) {
   byte retval = 0x00;
+  if (!hddSelectedDriveMounted ()) return 0xff;
   if (hddDataPtr < HDD_SECTOR_SIZE) {
     retval = hddDataBuf[hddDataPtr];
     hddDataPtr++;
@@ -382,9 +410,9 @@ void hddWritePrecomp     (byte value) { hddPrecomp     = value; }
 void hddWriteSectorCount (byte value) { hddSectorCount = value; }
 void hddWriteSector      (byte value) { hddSectorReg   = value; }
 
-byte hddReadError        (void) { return 0x00; }
-byte hddReadSectorCount  (void) { return hddSectorCount; }
-byte hddReadSector       (void) { return hddSectorReg; }
+byte hddReadError        (void) { return hddSelectedDriveMounted () ? 0x00 : 0xff; }
+byte hddReadSectorCount  (void) { return hddSelectedDriveMounted () ? hddSectorCount : 0xff; }
+byte hddReadSector       (void) { return hddSelectedDriveMounted () ? hddSectorReg   : 0xff; }
 
 /*****************************************************************************/
 /* Port 0x24..0x27 — control register block                                  */
@@ -396,13 +424,29 @@ void hddWriteSDH     (byte value) { hddSDH     = value; }
 
 void hddWriteCommand (byte value) {
   hddCommandReg = value;
+  /* If the selected drive has no image mounted, behave like the WD1010
+   * chip isn't present: ignore the command entirely, leave internal
+   * state machine idle, so subsequent status/register reads keep
+   * returning 0xFF and the BIOS probe bails out. */
+  if (!hddSelectedDriveMounted ()) {
+    hddActiveCmd    = HDC_CMD_NONE;
+    hddDRQ          = FALSE;
+    hddSeekComplete = FALSE;
+    return;
+  }
   hddExecute();
 }
 
-byte hddReadTrackLo (void) { return hddTrackLo; }
+byte hddReadTrackLo (void) {
+  return hddSelectedDriveMounted () ? hddTrackLo : 0xff;
+}
 
 byte hddReadStatus (void) {
   byte retval = 0;
+  /* No chip/drive at the selected slot -> bus floats high. This is the
+   * critical path: the BIOS probe reads this register first and will
+   * bail out when it sees 0xFF (BUSY bit set -> RET NZ at f942). */
+  if (!hddSelectedDriveMounted ()) return 0xff;
   if (hddBusy)         retval |= 0x80;
   if (hddReady)        retval |= 0x40;
   if (hddSeekComplete) retval |= 0x10;
