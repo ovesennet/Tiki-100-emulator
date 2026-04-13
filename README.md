@@ -115,7 +115,7 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 - **Disk directory viewer**: CP/M directory listing for loaded disk images, with file sizes and disk usage summary (toolbar button). Includes an **Add file** button per drive — select any host file to write it into the CP/M disk image (validates free space, creates directory entries, and saves the `.dsk` file automatically)
 - **CPU halt/continue**: Pause and resume Z80 execution from the memory viewer toolbar
 - **Command-line disk loading**: Load disk images at startup with `-diska <path>` and `-diskb <path>`
-- **Amstrad CPC DSK support**: Added direct support for the 200kb Extended CPC DSK format (EDSK). A sligtly different DSK format used by z88dk and other tools — container is transparently converted to raw sector data on load. With this you don't have to run INSTALL on the OS to set up the machine for 200K floppy drive.
+- **Amstrad CPC DSK support**: Added direct support for the Extended CPC DSK format (EDSK). A sligtly different DSK format used by z88dk and other tools — container is transparently converted to raw sector data on load.
 - **Debug logging**: Optional `-console` flag enables logging to stderr and `tikiemul.log`
 - **Help menu**: Keyboard shortcuts reference dialog
 - **Disk filename status bar**: New row at the bottom of the window showing `A: filename.dsk  B: filename.dsk` (or "not loaded") for each floppy drive, plus `HD0:` / `HD1:` when hard disk images are mounted
