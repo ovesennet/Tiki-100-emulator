@@ -6,12 +6,14 @@
 
 #include "TIKI-100_emul.h"
 #include "diskview.h"
+#include "log.h"
 
 #include <windows.h>
 #include <commdlg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_DIR_ENTRIES 256
 #define MAX_FILES       128
@@ -36,9 +38,15 @@ static RECT btnView = {0,0,0,0};
 static RECT btnDump = {0,0,0,0};
 static int  btnDrive = -1;     /* drive for which buttons are drawn */
 
-/* disk image data provided by win32.c */
-static const byte *diskData[2] = {NULL, NULL};
+/* "Add file" button hit areas (one per drive, in content coords) */
+#define ADDBTN_W 58
+#define ADDBTN_H 18
+static RECT btnAddFile[2] = {{0,0,0,0}, {0,0,0,0}};
+
+/* disk image data provided by win32.c (mutable for Add-file writes) */
+static byte *diskData[2] = {NULL, NULL};
 static unsigned long diskSize[2] = {0, 0};
+static char diskFilePath[2][MAX_PATH] = {"", ""};
 
 /* raw directory entry as read from disk */
 typedef struct {
@@ -60,10 +68,17 @@ void diskViewSetHwndPtr (HWND *p) {
   pHwndDiskView = p;
 }
 
-void diskViewSetDisk (int drive, const byte *data, unsigned long size) {
+void diskViewSetDisk (int drive, byte *data, unsigned long size,
+                      const char *filePath) {
   if (drive >= 0 && drive <= 1) {
     diskData[drive] = data;
     diskSize[drive] = size;
+    if (filePath && filePath[0]) {
+      strncpy (diskFilePath[drive], filePath, MAX_PATH - 1);
+      diskFilePath[drive][MAX_PATH - 1] = '\0';
+    } else {
+      diskFilePath[drive][0] = '\0';
+    }
   }
 }
 
@@ -644,6 +659,329 @@ static void dumpFileData (int drive, const FileInfo *file) {
   free (rawData);
 }
 
+/* ------------ CP/M file writer ------------ */
+
+/* convert a Windows-1252 character to TIKI-100 charset (ISO 646 Norwegian) */
+static char winToTikiChar (unsigned char c) {
+  switch (c) {
+    case 0xC6: case 0xE6: return '[';   /* AE/ae -> [ */
+    case 0xD8: case 0xF8: return '\\';  /* O-stroke -> \ */
+    case 0xC5: case 0xE5: return ']';   /* A-ring -> ] */
+    default:
+      if (c >= 'a' && c <= 'z') return (char)(c - 32);
+      if (c >= 0x20 && c <= 0x7E) return (char)c;
+      return '_';
+  }
+}
+
+/* convert a host filename to CP/M 8.3 format (11 bytes, space-padded).
+ * returns TRUE on success, FALSE if the name is empty or invalid. */
+static tiki_bool toCpmFilename (const char *hostPath, byte *cpm11) {
+  const char *base = strrchr (hostPath, '\\');
+  if (!base) base = strrchr (hostPath, '/');
+  base = base ? base + 1 : hostPath;
+
+  const char *dot = strrchr (base, '.');
+  int nameLen = dot ? (int)(dot - base) : (int)strlen (base);
+  const char *ext = dot ? dot + 1 : "";
+  int extLen = (int)strlen (ext);
+  if (nameLen > 8) nameLen = 8;
+  if (extLen > 3) extLen = 3;
+  if (nameLen == 0) return FALSE;
+
+  memset (cpm11, ' ', 11);
+  { int i; for (i = 0; i < nameLen; i++) cpm11[i] = winToTikiChar ((unsigned char)base[i]); }
+  { int i; for (i = 0; i < extLen; i++) cpm11[8 + i] = winToTikiChar ((unsigned char)ext[i]); }
+  return TRUE;
+}
+
+/* save the in-memory disk image back to the host file */
+static tiki_bool saveDiskImageToFile (int drive) {
+  FILE *fp;
+  if (!diskFilePath[drive][0] || !diskData[drive] || diskSize[drive] == 0)
+    return FALSE;
+  fp = fopen (diskFilePath[drive], "wb");
+  if (!fp) {
+    MessageBox (hwndDiskViewWnd, "Could not write disk image file.",
+                "Add file", MB_OK | MB_ICONERROR);
+    return FALSE;
+  }
+  fwrite (diskData[drive], 1, diskSize[drive], fp);
+  fclose (fp);
+  LOG_I ("Saved disk %c to %s", 'A' + drive, diskFilePath[drive]);
+  return TRUE;
+}
+
+/* add a host file to a CP/M disk image */
+static void handleAddFile (int drive) {
+  DiskGeometry geo;
+  byte cpm11[11];
+  int numAllocs, bytesPerEntry, totalBlocks, dirBlocks;
+  int blocksNeeded, entriesNeeded, freeBlocks, freeDirEntries;
+  byte *blockBitmap;
+  int *allocBlocks;
+  int allocated, exm, blockIdx, dirEntryIdx;
+  unsigned long bytesRemaining;
+  DWORD hostFileSize, dwRead;
+  byte *fileData;
+  HANDLE hFile;
+  int i, j, e;
+  char hostPath[MAX_PATH] = "";
+  OPENFILENAME ofn;
+
+  if (!diskData[drive] || diskSize[drive] == 0) {
+    MessageBox (hwndDiskViewWnd, "No disk loaded in this drive.",
+                "Add file", MB_OK | MB_ICONWARNING);
+    return;
+  }
+  if (!diskFilePath[drive][0]) {
+    MessageBox (hwndDiskViewWnd, "No file path for this disk image — cannot save changes.",
+                "Add file", MB_OK | MB_ICONWARNING);
+    return;
+  }
+  if (!getDiskGeometry (diskSize[drive], &geo)) {
+    MessageBox (hwndDiskViewWnd, "Unknown disk format.",
+                "Add file", MB_OK | MB_ICONERROR);
+    return;
+  }
+
+  /* open file dialog */
+  memset (&ofn, 0, sizeof (ofn));
+  ofn.lStructSize = sizeof (ofn);
+  ofn.hwndOwner = hwndDiskViewWnd;
+  ofn.lpstrFilter = "All Files\0*.*\0";
+  ofn.lpstrFile = hostPath;
+  ofn.nMaxFile = MAX_PATH;
+  ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+  ofn.lpstrTitle = drive ? "Add file to Drive B:" : "Add file to Drive A:";
+  if (!GetOpenFileName (&ofn)) return;
+
+  /* convert filename to CP/M 8.3 */
+  if (!toCpmFilename (hostPath, cpm11)) {
+    MessageBox (hwndDiskViewWnd, "Invalid filename for CP/M.",
+                "Add file", MB_OK | MB_ICONERROR);
+    return;
+  }
+
+  /* check for duplicate filename */
+  for (i = 0; i < geo.maxDir; i++) {
+    unsigned long off = geo.dirOffset + (unsigned long)i * 32;
+    tiki_bool match;
+    if (off + 32 > diskSize[drive]) break;
+    if (diskData[drive][off] == CPM_EMPTY || diskData[drive][off] > 0x0F) continue;
+    match = TRUE;
+    for (j = 0; j < 11; j++) {
+      if ((diskData[drive][off + 1 + j] & 0x7F) != cpm11[j]) { match = FALSE; break; }
+    }
+    if (match) {
+      MessageBox (hwndDiskViewWnd,
+                  "A file with this name already exists on the disk.",
+                  "Add file", MB_OK | MB_ICONWARNING);
+      return;
+    }
+  }
+
+  /* read the host file */
+  hFile = CreateFile (hostPath, GENERIC_READ, FILE_SHARE_READ, NULL,
+                      OPEN_EXISTING, 0, NULL);
+  if (hFile == INVALID_HANDLE_VALUE) {
+    MessageBox (hwndDiskViewWnd, "Cannot open the selected file.",
+                "Add file", MB_OK | MB_ICONERROR);
+    return;
+  }
+  hostFileSize = GetFileSize (hFile, NULL);
+  if (hostFileSize == 0) {
+    CloseHandle (hFile);
+    MessageBox (hwndDiskViewWnd, "Cannot add an empty file.",
+                "Add file", MB_OK | MB_ICONWARNING);
+    return;
+  }
+  fileData = (byte *)malloc (hostFileSize);
+  if (!fileData) {
+    CloseHandle (hFile);
+    MessageBox (hwndDiskViewWnd, "Out of memory.", "Add file", MB_OK | MB_ICONERROR);
+    return;
+  }
+  ReadFile (hFile, fileData, hostFileSize, &dwRead, NULL);
+  CloseHandle (hFile);
+
+  /* geometry calculations */
+  numAllocs    = geo.singleByteAlloc ? 16 : 8;
+  bytesPerEntry = numAllocs * geo.blockSize;
+  totalBlocks  = (int)((diskSize[drive] - geo.dirOffset) / geo.blockSize);
+  dirBlocks    = (geo.maxDir * 32 + geo.blockSize - 1) / geo.blockSize;
+  blocksNeeded = (int)((hostFileSize + geo.blockSize - 1) / geo.blockSize);
+  entriesNeeded = (blocksNeeded + numAllocs - 1) / numAllocs;
+  if (entriesNeeded < 1) entriesNeeded = 1;
+
+  /* build used-block bitmap */
+  blockBitmap = (byte *)calloc (totalBlocks, 1);
+  if (!blockBitmap) { free (fileData); return; }
+  for (i = 0; i < dirBlocks && i < totalBlocks; i++)
+    blockBitmap[i] = 1;
+  for (i = 0; i < geo.maxDir; i++) {
+    unsigned long off = geo.dirOffset + (unsigned long)i * 32;
+    if (off + 32 > diskSize[drive]) break;
+    if (diskData[drive][off] == CPM_EMPTY || diskData[drive][off] > 0x0F) continue;
+    if (geo.singleByteAlloc) {
+      for (j = 0; j < 16; j++) {
+        int blk = diskData[drive][off + 16 + j];
+        if (blk > 0 && blk < totalBlocks) blockBitmap[blk] = 1;
+      }
+    } else {
+      for (j = 0; j < 16; j += 2) {
+        int blk = diskData[drive][off + 16 + j] |
+                  (diskData[drive][off + 16 + j + 1] << 8);
+        if (blk > 0 && blk < totalBlocks) blockBitmap[blk] = 1;
+      }
+    }
+  }
+
+  /* check free space */
+  freeBlocks = 0;
+  for (i = 0; i < totalBlocks; i++)
+    if (!blockBitmap[i]) freeBlocks++;
+  if (blocksNeeded > freeBlocks) {
+    free (fileData);
+    free (blockBitmap);
+    {
+      char msg[256];
+      snprintf (msg, sizeof (msg),
+                "Not enough space on disk.\n\n"
+                "File needs %d KB, only %d KB available.",
+                (int)((hostFileSize + 1023) / 1024),
+                freeBlocks * geo.blockSize / 1024);
+      MessageBox (hwndDiskViewWnd, msg, "Add file", MB_OK | MB_ICONERROR);
+    }
+    return;
+  }
+
+  /* check free directory entries */
+  freeDirEntries = 0;
+  for (i = 0; i < geo.maxDir; i++) {
+    unsigned long off = geo.dirOffset + (unsigned long)i * 32;
+    if (off + 32 > diskSize[drive]) break;
+    if (diskData[drive][off] == CPM_EMPTY) freeDirEntries++;
+  }
+  if (entriesNeeded > freeDirEntries) {
+    free (fileData);
+    free (blockBitmap);
+    MessageBox (hwndDiskViewWnd, "Not enough free directory entries on the disk.",
+                "Add file", MB_OK | MB_ICONERROR);
+    return;
+  }
+
+  /* allocate blocks */
+  allocBlocks = (int *)malloc (blocksNeeded * sizeof (int));
+  if (!allocBlocks) { free (fileData); free (blockBitmap); return; }
+  allocated = 0;
+  for (i = 0; i < totalBlocks && allocated < blocksNeeded; i++) {
+    if (!blockBitmap[i]) allocBlocks[allocated++] = i;
+  }
+  free (blockBitmap);
+
+  /* write file data into disk image blocks */
+  for (i = 0; i < blocksNeeded; i++) {
+    unsigned long diskOff = geo.dirOffset + (unsigned long)allocBlocks[i] * geo.blockSize;
+    unsigned long remain  = hostFileSize - (unsigned long)i * geo.blockSize;
+    unsigned long toWrite = (remain < (unsigned long)geo.blockSize) ? remain : (unsigned long)geo.blockSize;
+    memcpy (diskData[drive] + diskOff, fileData + (unsigned long)i * geo.blockSize, toWrite);
+    if (toWrite < (unsigned long)geo.blockSize)
+      memset (diskData[drive] + diskOff + toWrite, 0x1A, geo.blockSize - toWrite);
+  }
+  free (fileData);
+
+  /* create directory entries */
+  exm = bytesPerEntry / 16384 - 1;
+  if (exm < 0) exm = 0;
+  blockIdx = 0;
+  dirEntryIdx = 0;
+  bytesRemaining = hostFileSize;
+
+  for (e = 0; e < entriesNeeded; e++) {
+    unsigned long dirOff;
+    byte *entry;
+    int blocksThisEntry, logExtent;
+    unsigned long bytesThisEntry;
+    int rc;
+
+    /* find next free directory slot */
+    while (dirEntryIdx < geo.maxDir) {
+      dirOff = geo.dirOffset + (unsigned long)dirEntryIdx * 32;
+      if (dirOff + 32 <= diskSize[drive] && diskData[drive][dirOff] == CPM_EMPTY) break;
+      dirEntryIdx++;
+    }
+    if (dirEntryIdx >= geo.maxDir) break;
+
+    dirOff = geo.dirOffset + (unsigned long)dirEntryIdx * 32;
+    entry = diskData[drive] + dirOff;
+    memset (entry, 0, 32);
+
+    entry[0] = 0;                         /* user 0 */
+    memcpy (entry + 1, cpm11, 11);        /* filename */
+
+    logExtent = e * (exm + 1);
+    entry[12] = (byte)(logExtent & 0x1F); /* EX */
+    entry[13] = 0;                        /* S1 */
+    entry[14] = (byte)((logExtent >> 5) & 0x3F); /* S2 */
+
+    blocksThisEntry = blocksNeeded - blockIdx;
+    if (blocksThisEntry > numAllocs) blocksThisEntry = numAllocs;
+    bytesThisEntry = (unsigned long)blocksThisEntry * geo.blockSize;
+    if (bytesThisEntry > bytesRemaining) bytesThisEntry = bytesRemaining;
+
+    /* RC (record count) */
+    if (e < entriesNeeded - 1) {
+      rc = 0x80;  /* 128 records — full extent */
+      if (exm > 0) entry[12] = (byte)((logExtent + exm) & 0x1F);
+    } else {
+      if (exm > 0 && bytesThisEntry > 16384) {
+        entry[12] = (byte)((logExtent + 1) & 0x1F);
+        rc = (int)((bytesThisEntry - 16384 + 127) / 128);
+      } else {
+        rc = (int)((bytesThisEntry + 127) / 128);
+      }
+      if (rc > 0x80) rc = 0x80;
+    }
+    entry[15] = (byte)rc;
+
+    /* allocation map */
+    for (j = 0; j < blocksThisEntry; j++) {
+      int blk = allocBlocks[blockIdx + j];
+      if (geo.singleByteAlloc) {
+        entry[16 + j] = (byte)blk;
+      } else {
+        entry[16 + j * 2]     = (byte)(blk & 0xFF);
+        entry[16 + j * 2 + 1] = (byte)((blk >> 8) & 0xFF);
+      }
+    }
+
+    blockIdx += blocksThisEntry;
+    bytesRemaining -= bytesThisEntry;
+    dirEntryIdx++;
+  }
+  free (allocBlocks);
+
+  /* save modified image back to the host file */
+  saveDiskImageToFile (drive);
+
+  /* force the viewer to refresh immediately */
+  if (hwndDiskViewWnd) {
+    selDrive = -1; selIndex = -1;
+    InvalidateRect (hwndDiskViewWnd, NULL, FALSE);
+  }
+
+  {
+    char fmtName[14];
+    int k = 0;
+    for (i = 0; i < 8 && cpm11[i] != ' '; i++) fmtName[k++] = tikiCharToWin (cpm11[i]);
+    fmtName[k++] = '.';
+    for (i = 8; i < 11 && cpm11[i] != ' '; i++) fmtName[k++] = tikiCharToWin (cpm11[i]);
+    fmtName[k] = '\0';
+    LOG_I ("Added file %s to drive %c", fmtName, 'A' + drive);
+  }
+}
+
 /* paint a drive section, returns the y position after the last drawn line */
 static int paintDrive (HDC hdc, int drive, int x, int y, int w, HFONT monoFont, HFONT headerFont) {
   char label[64];
@@ -657,6 +995,24 @@ static int paintDrive (HDC hdc, int drive, int x, int y, int w, HFONT monoFont, 
   else
     snprintf (label, sizeof(label), "Drive %c:", 'A' + drive);
   TextOut (hdc, x, y, label, (int)strlen (label));
+
+  /* "Add file" button — right-aligned in header, only if a disk is loaded */
+  if (diskData[drive] && diskSize[drive] > 0) {
+    RECT ab;
+    HFONT oldF;
+    ab.left = x + w - ADDBTN_W - 14;
+    ab.top  = y - 1;
+    ab.right = ab.left + ADDBTN_W;
+    ab.bottom = ab.top + ADDBTN_H;
+    DrawFrameControl (hdc, &ab, DFC_BUTTON, DFCS_BUTTONPUSH);
+    oldF = SelectObject (hdc, monoFont);
+    SetTextColor (hdc, GetSysColor (COLOR_BTNTEXT));
+    DrawText (hdc, "Add file", 8, &ab, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject (hdc, oldF);
+    btnAddFile[drive] = ab;
+  } else {
+    SetRectEmpty (&btnAddFile[drive]);
+  }
   y += 22;
 
   /* separator line */
@@ -844,10 +1200,21 @@ LRESULT CALLBACK DiskViewWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         int my = (int)(short)HIWORD (lParam);
         int contentY = my + scrollPos;
         RECT rc;
+        int halfW, d;
         GetClientRect (hwnd, &rc);
-        int halfW = (rc.right - rc.left) / 2;
+        halfW = (rc.right - rc.left) / 2;
 
-        /* check if a button was clicked (in content coords) */
+        /* check "Add file" buttons */
+        for (d = 0; d < 2; d++) {
+          if (!IsRectEmpty (&btnAddFile[d]) &&
+              mx >= btnAddFile[d].left && mx < btnAddFile[d].right &&
+              contentY >= btnAddFile[d].top && contentY < btnAddFile[d].bottom) {
+            handleAddFile (d);
+            return 0;
+          }
+        }
+
+        /* check if a View/Save button was clicked (in content coords) */
         if (selDrive >= 0 && selIndex >= 0 && btnDrive == selDrive) {
           int btnY = contentY;
           if (btnY >= btnView.top && btnY < btnView.bottom) {
@@ -869,25 +1236,28 @@ LRESULT CALLBACK DiskViewWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         }
 
         /* otherwise, select a file row */
-        int drive = (mx < halfW) ? 0 : 1;
-        FileInfo files[MAX_FILES];
-        int fileCount = parseCpmDirectory (drive, files, MAX_FILES);
-        if (fileCount <= 0) {
-          selDrive = -1; selIndex = -1;
+        {
+          int drive = (mx < halfW) ? 0 : 1;
+          FileInfo files[MAX_FILES];
+          int fileCount = parseCpmDirectory (drive, files, MAX_FILES);
+          if (fileCount <= 0) {
+            selDrive = -1; selIndex = -1;
+            InvalidateRect (hwnd, NULL, FALSE);
+            break;
+          }
+          {
+            int firstFileY = 10 + HEADER_HEIGHT + 16;
+            int idx = (contentY - firstFileY) / LINE_HEIGHT;
+            if (contentY >= firstFileY && idx >= 0 && idx < fileCount) {
+              selDrive = drive;
+              selIndex = idx;
+            } else {
+              selDrive = -1;
+              selIndex = -1;
+            }
+          }
           InvalidateRect (hwnd, NULL, FALSE);
-          break;
         }
-
-        int firstFileY = 10 + HEADER_HEIGHT + 16;
-        int idx = (contentY - firstFileY) / LINE_HEIGHT;
-        if (contentY >= firstFileY && idx >= 0 && idx < fileCount) {
-          selDrive = drive;
-          selIndex = idx;
-        } else {
-          selDrive = -1;
-          selIndex = -1;
-        }
-        InvalidateRect (hwnd, NULL, FALSE);
       }
       return 0;
     case WM_ERASEBKGND:

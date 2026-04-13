@@ -165,6 +165,8 @@ static HMENU savedMenu;
 static int keyHoldFrames[256]; /* frames remaining for key press in fast mode */
 static char diskNameA[260] = "";
 static char diskNameB[260] = "";
+static char diskPathA[MAX_PATH] = "";
+static char diskPathB[MAX_PATH] = "";
 static char iniPath[MAX_PATH] = "";
 static char mruList[MRU_MAX_ENTRIES][MAX_PATH];
 static int mruCount = 0;
@@ -896,15 +898,17 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         case IDM_FJERN_A:
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_A, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (0);
-          diskViewSetDisk (0, NULL, 0);
+          diskViewSetDisk (0, NULL, 0, NULL);
           diskNameA[0] = '\0';
+          diskPathA[0] = '\0';
           updateDiskBar();
           break;
         case IDM_FJERN_B:
           EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), IDM_LAGRE_B, MF_BYCOMMAND | MF_GRAYED);
           removeDisk (1);
-          diskViewSetDisk (1, NULL, 0);
+          diskViewSetDisk (1, NULL, 0, NULL);
           diskNameB[0] = '\0';
+          diskPathB[0] = '\0';
           updateDiskBar();
           break;
         case IDM_HENT_HDD0:
@@ -918,12 +922,14 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           hddPath0[0] = '\0';
           hddUpdateFloppyAMenuState ();
           LOG_I ("Ejected HDD 0 from menu");
+          updateDiskBar ();
           break;
         case IDM_FJERN_HDD1:
           removeHdd (1);
           hddPath1[0] = '\0';
           hddUpdateFloppyAMenuState ();
           LOG_I ("Ejected HDD 1 from menu");
+          updateDiskBar ();
           break;
         case IDM_Z80INFO:
           if (hwndZ80Info && IsWindow (hwndZ80Info)) {
@@ -982,8 +988,8 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             RegisterClass (&wc);
             diskViewSetHwndPtr (&hwndDskInfo);
             /* provide current disk data */
-            diskViewSetDisk (0, dsk[0], fileSize[0]);
-            diskViewSetDisk (1, dsk[1], fileSize[1]);
+            diskViewSetDisk (0, dsk[0], fileSize[0], diskPathA);
+            diskViewSetDisk (1, dsk[1], fileSize[1], diskPathB);
             hwndDskInfo = CreateWindowEx (WS_EX_TOOLWINDOW, "DiskViewClass", "Disk directory",
               WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VSCROLL,
               CW_USEDEFAULT, CW_USEDEFAULT, 460, 420,
@@ -1059,11 +1065,29 @@ static void updateDiskBar (void) {
   /* clear background */
   SelectObject (memdc, GetSysColorBrush (COLOR_3DFACE));
   PatBlt (memdc, 0, barY, width, DISKBAR_HEIGHT, PATCOPY);
-  /* draw text */
-  char text[560];
+  /* build text — extract just the filenames from full paths */
+  char text[1280];
   const char *nameA = diskNameA[0] ? diskNameA : "(not loaded)";
   const char *nameB = diskNameB[0] ? diskNameB : "(not loaded)";
-  snprintf (text, sizeof (text), "  A: %s   B: %s", nameA, nameB);
+  const char *hd0 = NULL, *hd1 = NULL;
+  if (hddPath0[0]) {
+    hd0 = strrchr (hddPath0, '\\');
+    if (!hd0) hd0 = strrchr (hddPath0, '/');
+    hd0 = hd0 ? hd0 + 1 : hddPath0;
+  }
+  if (hddPath1[0]) {
+    hd1 = strrchr (hddPath1, '\\');
+    if (!hd1) hd1 = strrchr (hddPath1, '/');
+    hd1 = hd1 ? hd1 + 1 : hddPath1;
+  }
+  if (hd0 && hd1)
+    snprintf (text, sizeof (text), "  A: %s   B: %s   HD0: %s   HD1: %s", nameA, nameB, hd0, hd1);
+  else if (hd0)
+    snprintf (text, sizeof (text), "  A: %s   B: %s   HD0: %s", nameA, nameB, hd0);
+  else if (hd1)
+    snprintf (text, sizeof (text), "  A: %s   B: %s   HD1: %s", nameA, nameB, hd1);
+  else
+    snprintf (text, sizeof (text), "  A: %s   B: %s", nameA, nameB);
   HFONT font = CreateFont (13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
     DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
@@ -1358,12 +1382,18 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
     strncpy (dst, name, 259);
     dst[259] = '\0';
   }
+  /* store full disk file path for save-back */
+  {
+    char *pdst = (drive == 0) ? diskPathA : diskPathB;
+    strncpy (pdst, path, MAX_PATH - 1);
+    pdst[MAX_PATH - 1] = '\0';
+  }
   switch (fileSize[drive]) {
     case 40*1*18*128:
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 40, 1, 18, 128);
-      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive], path);
       LOG_I("Loaded disk %c: 40x1x18x128 from %s", 'A' + drive, path);
       mruAdd (path);
       updateDiskBar();
@@ -1372,7 +1402,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 40, 1, 10, 512);
-      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive], path);
       LOG_I("Loaded disk %c: 40x1x10x512 from %s", 'A' + drive, path);
       mruAdd (path);
       updateDiskBar();
@@ -1381,7 +1411,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 40, 2, 10, 512);
-      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive], path);
       LOG_I("Loaded disk %c: 40x2x10x512 from %s", 'A' + drive, path);
       mruAdd (path);
       updateDiskBar();
@@ -1390,7 +1420,7 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       EnableMenuItem (GetSubMenu (GetMenu (hwnd), 1), drive == 0 ? IDM_LAGRE_A : IDM_LAGRE_B,
                       MF_BYCOMMAND | MF_ENABLED);
       insertDisk (drive, dsk[drive], 80, 2, 10, 512);
-      diskViewSetDisk (drive, dsk[drive], fileSize[drive]);
+      diskViewSetDisk (drive, dsk[drive], fileSize[drive], path);
       LOG_I("Loaded disk %c: 80x2x10x512 from %s", 'A' + drive, path);
       mruAdd (path);
       updateDiskBar();
@@ -1409,7 +1439,8 @@ static tiki_bool loadDiskFromFile (int drive, const char *path) {
       dsk[drive] = NULL;
       removeDisk (drive);
       fileSize[drive] = 0;
-      if (drive == 0) diskNameA[0] = '\0'; else diskNameB[0] = '\0';
+      if (drive == 0) { diskNameA[0] = '\0'; diskPathA[0] = '\0'; }
+      else { diskNameB[0] = '\0'; diskPathB[0] = '\0'; }
       updateDiskBar();
       return FALSE;
   }
@@ -1461,6 +1492,7 @@ static void getHddImage (int drive) {
       dst[MAX_PATH - 1] = '\0';
       hddUpdateFloppyAMenuState ();
       LOG_I ("Mounted HDD %d from menu: %s", drive, fn);
+      updateDiskBar ();
     } else {
       MessageBox (hwnd, "Failed to open HDD image.",
                   "TIKI-100 Emulator", MB_OK | MB_ICONERROR);

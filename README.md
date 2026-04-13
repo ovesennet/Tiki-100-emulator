@@ -112,13 +112,13 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 - **FPS overlay**: Real-time frame rate counter drawn on the display (F10)
 - **Z80 information window**: Live-updating CPU register, flags, and interrupt state viewer (toolbar button)
 - **Memory viewer/editor**: Hex/ASCII memory viewer with search, direct editing, and address navigation (toolbar button)
-- **Disk directory viewer**: CP/M directory listing for loaded disk images, with file sizes and disk usage summary (toolbar button)
+- **Disk directory viewer**: CP/M directory listing for loaded disk images, with file sizes and disk usage summary (toolbar button). Includes an **Add file** button per drive — select any host file to write it into the CP/M disk image (validates free space, creates directory entries, and saves the `.dsk` file automatically)
 - **CPU halt/continue**: Pause and resume Z80 execution from the memory viewer toolbar
 - **Command-line disk loading**: Load disk images at startup with `-diska <path>` and `-diskb <path>`
 - **Amstrad CPC DSK support**: Added support for the Extended CPC DSK format (EDSK). A sligtly different DSK format used by z88dk and other tools — container is transparently converted to raw sector data on load
 - **Debug logging**: Optional `-console` flag enables logging to stderr and `tikiemul.log`
 - **Help menu**: Keyboard shortcuts reference dialog
-- **Disk filename status bar**: New row at the bottom of the window showing `A: filename.dsk  B: filename.dsk` (or "not loaded") for each drive
+- **Disk filename status bar**: New row at the bottom of the window showing `A: filename.dsk  B: filename.dsk` (or "not loaded") for each floppy drive, plus `HD0:` / `HD1:` when hard disk images are mounted
 - **Minimum window size**: Low-res (40-column) mode enforces a 350px minimum width; the emulator area is centered with dark gray margins on all sides
 - **Custom About dialog**: Shows the application icon (128×128), version string, credits, and a clickable GitHub repository link
 - **EXE version information**: File properties now show version, description, and copyright via embedded VERSIONINFO resource
