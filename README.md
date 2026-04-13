@@ -16,6 +16,7 @@ The emulator includes:
 - Z80 CPU emulation (based on Marat Fayzullin's Z80 engine)
 - Video emulation (1024×256 high-res, 512×256 medium-res, 256×256 low-res modes)
 - Floppy disk controller (WD1793) emulation with support for various disk image formats
+- Hard disk controller (WD1010) emulation — up to 2 × 8 MB raw disk images
 - Z80-CTC (Counter/Timer) emulation
 - Z80-DART (serial port) emulation
 - Keyboard emulation with Norwegian layout support
@@ -81,20 +82,29 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 ### Command-line options
 
 ```bash
-./bin/tikiemul.exe [-diska <path>] [-diskb <path>] [-console]
+./bin/tikiemul.exe [-diska <path>] [-diskb <path>] [-hd0 <path>] [-hd1 <path>] [-console]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `-diska <path>` | Load a disk image into drive A: at startup |
-| `-diskb <path>` | Load a disk image into drive B: at startup |
+| `-diska <path>` | Load a floppy disk image into drive A: at startup |
+| `-diskb <path>` | Load a floppy disk image into drive B: at startup |
+| `-hd0 <path>` | Mount a hard disk image as HDD 0 at startup |
+| `-hd1 <path>` | Mount a hard disk image as HDD 1 at startup |
 | `-console` | Enable debug logging to stderr and `tikiemul.log` |
+
+> **Note:** Floppy drive A: is automatically disabled while any hard disk is mounted, matching the original TIKI-100 hardware behavior. If both `-hd0` and `-diska` are specified, the HDD takes priority.
 
 ## Changes from original v1.1.1
 
 ### v1.2.0 (Arctic Retro)
 
 **New features:**
+- **WD1010 hard disk controller emulation**: Supports up to 2 × 8 MB raw disk images (256 cylinders × 2 heads × 16 sectors × 512 bytes). I/O ports 0x20–0x27. Commands: RESTORE, READ SECTOR, WRITE SECTOR. Images opened read-write with fallback to read-only
+- **Hard disk menu**: New "Hard disk" menu with Load/Eject for HDD 0 and HDD 1. Mount paths are persisted in the `[HardDisks]` section of `tikiemul.ini` and auto-remounted on next launch
+- **HDD activity LEDs**: Status bar shows activity indicators for HDD 0 and HDD 1 with an 80 ms decay timer for visibility
+- **HDD command-line flags**: `-hd0 <path>` and `-hd1 <path>` mount hard disk images at startup
+- **Floppy A lockout**: Loading floppy drive A: is automatically disabled while any hard disk is mounted, matching original TIKI-100 hardware behavior
 - **AY-3-8912 sound chip emulation**: Full PSG audio with 3 tone channels, noise generator, envelope generator, and register write masking — output via waveOut API at 44100 Hz
 - **Toolbar**: Button row above the emulator screen area with quick-access tools
 - **Fullscreen mode**: Integer-scaled fullscreen with black bars, toggle via F12 or toolbar
@@ -148,12 +158,45 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 
 ## Supported disk image formats
 
+### Floppy disks (WD1793 FDC)
+
 | Tracks | Sides | Sectors | Sector size | Total size |
 |--------|-------|---------|-------------|------------|
 | 40     | 1     | 18      | 128 bytes   | 90 KB      |
 | 40     | 1     | 10      | 512 bytes   | 200 KB     |
 | 40     | 2     | 10      | 512 bytes   | 400 KB     |
 | 80     | 2     | 10      | 512 bytes   | 800 KB     |
+
+Floppy images can be raw sector dumps or Amstrad CPC DSK / Extended CPC DSK containers (automatically converted on load).
+
+### Hard disks (WD1010 HDC)
+
+| Cylinders | Heads | Sectors | Sector size | Total size |
+|-----------|-------|---------|-------------|------------|
+| 256       | 2     | 16      | 512 bytes   | 8 MB       |
+
+Hard disk images are raw sector dumps (`.dsk`, `.img`, or `.hdd`). Up to 2 drives can be mounted simultaneously.
+
+## Example disk images
+
+The `src/plater/` directory contains several ready-to-use disk images:
+
+| File | Size | Description |
+|------|------|-------------|
+| `tiko_kjerne_v4.01.dsk` | 400 KB | TIKO kernel v4.01 — the CP/M-compatible operating system. Boot this first |
+| `t90.dsk` | 90 KB | Empty formatted 90 KB disk (40 tracks, 1 side, 128-byte sectors) |
+| `t200.dsk` | 200 KB | Empty formatted 200 KB disk (40 tracks, 1 side, 512-byte sectors) |
+| `t400.dsk` | 400 KB | Empty formatted 400 KB disk (40 tracks, 2 sides, 512-byte sectors) |
+| `t800.dsk` | 800 KB | Empty formatted 800 KB disk (80 tracks, 2 sides, 512-byte sectors) |
+| `hello.dsk` | 420 KB | Example application disk (not bootable — load TIKO kernel first) |
+
+To boot the emulator: load `tiko_kjerne_v4.01.dsk` into drive A:, then reset. Application disks can be loaded into drive B: (or swapped into A: after booting).
+
+More TIKI-100 software can be found at [https://www.djupdal.org/tiki/program/](https://www.djupdal.org/tiki/program/).
+
+## Known limitations
+
+> **Note:** Serial port (Z80-DART) and parallel port emulation have not been tested in this version.
 
 ## License
 
