@@ -77,7 +77,7 @@ $(BINDIR)/diskview.o : diskview.c diskview.h TIKI-100_emul.h Makefile | $(BINDIR
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 $(BINDIR)/win32.o : win32.c win32_res.h TIKI-100_emul.h Z80.h log.h screenshot.h z80info.h memview.h diskview.h version.h Makefile | $(BINDIR)
-	$(CC) -c $< -o $@ $(CFLAGS) -fexec-charset=CP1252
+	$(CC) -c $< -o $@ $(CFLAGS)
 
 $(BINDIR)/win32_res.res : win32_res.rc win32_res.h win32.ico TIKI-100_emul.h Z80.h version.h tikiemul.exe.manifest Makefile | $(BINDIR)
 	windres $< $(Z80_DEBUGGER) -O coff -o $@ --codepage=65001
