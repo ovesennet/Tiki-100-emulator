@@ -128,4 +128,31 @@ byte parBData (void);
 byte parAStatus (void);
 byte parBStatus (void);
 
+/*****************************************************************************/
+/* hdd.c                                                                     */
+/*****************************************************************************/
+
+/* må kalles før emulering starter */
+void hddInit (void);
+/* reset av kontroller (kalles fra resetEmul) */
+void hddReset (void);
+
+/* port 0x20..0x23 — dataregister-blokk */
+void hddWriteData        (byte value);
+byte hddReadData         (void);
+void hddWritePrecomp     (byte value);
+byte hddReadError        (void);
+void hddWriteSectorCount (byte value);
+byte hddReadSectorCount  (void);
+void hddWriteSector      (byte value);
+byte hddReadSector       (void);
+
+/* port 0x24..0x27 — kontrollregister-blokk */
+void hddWriteTrackLo (byte value);
+byte hddReadTrackLo  (void);
+void hddWriteTrackHi (byte value);
+void hddWriteSDH     (byte value);
+void hddWriteCommand (byte value);
+byte hddReadStatus   (void);
+
 #endif

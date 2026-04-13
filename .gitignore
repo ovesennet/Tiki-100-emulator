@@ -6,3 +6,6 @@ bin/*
 *.o
 *.obj
 *.res
+
+# HDD test images (8 MB each — fetched from ronny-tiki100 for local testing)
+disks/hdd/*.dsk

@@ -20,7 +20,7 @@ LDFLAGS = -s -Wl,--subsystem,windows -lgdi32 -lcomdlg32 -lcomctl32 -lwinmm -ldwm
 
 BINDIR = ../bin
 
-OBJECTS = $(BINDIR)/TIKI-100_emul.o $(BINDIR)/mem.o $(BINDIR)/video.o $(BINDIR)/sound.o $(BINDIR)/ctc.o $(BINDIR)/keyboard.o $(BINDIR)/disk.o $(BINDIR)/serial.o $(BINDIR)/parallel.o $(BINDIR)/Z80.o $(BINDIR)/Debug.o $(BINDIR)/log.o $(BINDIR)/screenshot.o $(BINDIR)/z80info.o $(BINDIR)/memview.o $(BINDIR)/diskview.o $(BINDIR)/win32.o $(BINDIR)/win32_res.res
+OBJECTS = $(BINDIR)/TIKI-100_emul.o $(BINDIR)/mem.o $(BINDIR)/video.o $(BINDIR)/sound.o $(BINDIR)/ctc.o $(BINDIR)/keyboard.o $(BINDIR)/disk.o $(BINDIR)/hdd.o $(BINDIR)/serial.o $(BINDIR)/parallel.o $(BINDIR)/Z80.o $(BINDIR)/Debug.o $(BINDIR)/log.o $(BINDIR)/screenshot.o $(BINDIR)/z80info.o $(BINDIR)/memview.o $(BINDIR)/diskview.o $(BINDIR)/win32.o $(BINDIR)/win32_res.res
 
 $(BINDIR)/tikiemul.exe : $(OBJECTS) Makefile | $(BINDIR)
 	$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
@@ -47,6 +47,9 @@ $(BINDIR)/keyboard.o : keyboard.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BI
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 $(BINDIR)/disk.o : disk.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+$(BINDIR)/hdd.o : hdd.c hdd.h TIKI-100_emul.h protos.h Z80.h log.h Makefile | $(BINDIR)
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 $(BINDIR)/serial.o : serial.c TIKI-100_emul.h protos.h Z80.h Makefile | $(BINDIR)

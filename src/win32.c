@@ -231,6 +231,13 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   GetCurrentDirectory (256, defaultDir);
   LOG_T("Working directory: %s", defaultDir);
 
+  /* initialize HDD controller state before any command-line mounts —
+   * the emulator core used to call this from runEmul(), but since the
+   * command-line parsing below may call insertHdd() before runEmul() is
+   * reached, we must clear the HDD state here to avoid clobbering a
+   * fresh mount. */
+  hddInit ();
+
   /* parse command-line disk image arguments */
   {
     char *p;
@@ -265,6 +272,36 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
       if (i > 0) {
         LOG_I("Command-line disk B: %s", path);
         loadDiskFromFile (1, path);
+      }
+    }
+    if ((p = strstr (lpszArgs, "-hd0")) != NULL) {
+      p += 4;
+      while (*p == ' ') p++;
+      if (*p == '"') {
+        p++;
+        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
+      } else {
+        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
+      }
+      path[i] = '\0';
+      if (i > 0) {
+        LOG_I("Command-line HDD 0: %s", path);
+        insertHdd (0, path);
+      }
+    }
+    if ((p = strstr (lpszArgs, "-hd1")) != NULL) {
+      p += 4;
+      while (*p == ' ') p++;
+      if (*p == '"') {
+        p++;
+        for (i = 0; i < 259 && *p && *p != '"'; i++) path[i] = *p++;
+      } else {
+        for (i = 0; i < 259 && *p && *p != ' '; i++) path[i] = *p++;
+      }
+      path[i] = '\0';
+      if (i > 0) {
+        LOG_I("Command-line HDD 1: %s", path);
+        insertHdd (1, path);
       }
     }
   }
@@ -1786,6 +1823,14 @@ void diskLight (int drive, tiki_bool status) {
   PatBlt (memdc, x, TOOLBAR_HEIGHT + height + 6, 7, 7, PATCOPY);
   update (61, TOOLBAR_HEIGHT + height + 6, 7, 7);
   disk[drive] = status;
+}
+/* Tenn/slukk HDD aktivitetslys for gitt stasjon.
+ * Stub-implementasjon: ingen LED-tegning enda — det kommer i neste commit
+ * sammen med Hard disk-menyen og diskbjelke-utvidelsen. Finnes kun for at
+ * hdd.c skal kunne kalle callback'en og linkingen skal gå igjennom. */
+void hddLight (int drive, tiki_bool status) {
+  (void)drive;
+  (void)status;
 }
 static void update (int x, int y, int w, int h) {
   if (xmin > x) xmin = x;
