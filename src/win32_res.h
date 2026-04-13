@@ -53,3 +53,9 @@
 #define IDM_MRU_BASE        38
 #define IDM_MRU_MAX         45
 #define IDM_MRU_CLEAR       46
+
+/* Hard disk menu items */
+#define IDM_HENT_HDD0       50
+#define IDM_HENT_HDD1       51
+#define IDM_FJERN_HDD0      52
+#define IDM_FJERN_HDD1      53

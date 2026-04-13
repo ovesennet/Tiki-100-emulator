@@ -24,6 +24,12 @@ menu MENU {
       MENUITEM "Eject disk A", IDM_FJERN_A
       MENUITEM "Eject disk B", IDM_FJERN_B
    }
+   POPUP "&Hard disk" {
+      MENUITEM "Load HDD &0...", IDM_HENT_HDD0
+      MENUITEM "Load HDD &1...", IDM_HENT_HDD1
+      MENUITEM "Eject HDD 0", IDM_FJERN_HDD0
+      MENUITEM "Eject HDD 1", IDM_FJERN_HDD1
+   }
 #ifdef DEBUG
    POPUP "&Debug" {
       MENUITEM "&Monitor...", IDM_MONITOR

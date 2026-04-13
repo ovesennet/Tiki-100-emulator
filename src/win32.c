@@ -41,6 +41,7 @@ static void update (int x, int y, int w, int h);
 static tiki_bool loadDiskFromFile (int drive, const char *path);
 static void draw3dBox (int x, int y, int w, int h);
 static void getDiskImage (int drive);
+static void getHddImage (int drive);
 static void saveDiskImage (int drive);
 static void setParam (HANDLE portHandle, struct serParams *params);
 static void toggleFullscreen (void);
@@ -853,6 +854,20 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           diskNameB[0] = '\0';
           updateDiskBar();
           break;
+        case IDM_HENT_HDD0:
+          getHddImage (0);
+          break;
+        case IDM_HENT_HDD1:
+          getHddImage (1);
+          break;
+        case IDM_FJERN_HDD0:
+          removeHdd (0);
+          LOG_I ("Ejected HDD 0 from menu");
+          break;
+        case IDM_FJERN_HDD1:
+          removeHdd (1);
+          LOG_I ("Ejected HDD 1 from menu");
+          break;
         case IDM_Z80INFO:
           if (hwndZ80Info && IsWindow (hwndZ80Info)) {
             SetForegroundWindow (hwndZ80Info);
@@ -1220,9 +1235,32 @@ static void getDiskImage (int drive) {
   fname.lpstrFile = fn;
   fname.nMaxFile = sizeof (fn);
   fname.Flags = OFN_FILEMUSTEXIST;
-  
+
   if (GetOpenFileName (&fname)) {
     loadDiskFromFile (drive, fn);
+  }
+}
+/* hent inn hard-disk image fra fil */
+static void getHddImage (int drive) {
+  OPENFILENAME fname;
+  char fn[260] = "\0";
+
+  memset (&fname, 0, sizeof (OPENFILENAME));
+  fname.lStructSize = sizeof (OPENFILENAME);
+  fname.hwndOwner   = hwnd;
+  fname.lpstrFile   = fn;
+  fname.nMaxFile    = sizeof (fn);
+  fname.lpstrFilter = "Hard disk images (*.dsk;*.img;*.hdd)\0*.dsk;*.img;*.hdd\0All files (*.*)\0*.*\0";
+  fname.lpstrTitle  = drive ? "Load HDD 1" : "Load HDD 0";
+  fname.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+  if (GetOpenFileName (&fname)) {
+    if (insertHdd (drive, fn)) {
+      LOG_I ("Mounted HDD %d from menu: %s", drive, fn);
+    } else {
+      MessageBox (hwnd, "Failed to open HDD image.",
+                  "TIKI-100 Emulator", MB_OK | MB_ICONERROR);
+    }
   }
 }
 /* lagre diskbilde til fil */
