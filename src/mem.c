@@ -118,9 +118,11 @@ void OutZ80 (register word port, register byte value) {
       newColor (value);
       break;
     case 0x16:  /* lyd-scroll peker */
+      soundFlush ();         /* generate audio up to this exact cycle */
       soundReg (value);
       break;
     case 0x17:  /* lyd-scroll data */
+      soundFlush ();         /* generate audio up to this exact cycle */
       soundData (value);
       break;
     case 0x18:  /* ctc kanal 0 */

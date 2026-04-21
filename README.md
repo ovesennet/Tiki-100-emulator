@@ -97,6 +97,15 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 
 ## Changes from original v1.1.1
 
+### v1.2.1 (Arctic Retro)
+
+**Audio improvements:**
+- **Gapless audio playback**: Rewrote waveOut buffer management to eliminate choppy sound on continuous tones. Audio device now acts as the emulation timing master — `submitBuffer` blocks via `CALLBACK_EVENT` / `WHDR_DONE` synchronization, replacing the imprecise `Sleep()`-based pacing that caused sample underruns
+- **Small waveOut buffers**: Reduced from 1024 to 256 samples (~5.8 ms each) with 12 buffers for a responsive, jitter-tolerant pipeline
+- **`timeBeginPeriod(1)`**: System timer resolution set to 1 ms at audio init for accurate fallback Sleep timing
+- **Message pumping in audio wait**: `PeekMessage`/`DispatchMessage` loop inside the blocking wait keeps the UI responsive on the single-threaded emulation loop
+- **Fast-mode pacing control**: New `soundSetPacing()` disables audio blocking when "Limit speed" is unchecked, allowing full-speed emulation without audio stalls
+
 ### v1.2.0 (Arctic Retro)
 
 **New features:**

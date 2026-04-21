@@ -79,6 +79,14 @@ void soundData (byte value);
 byte getSoundData (void);
 /* generer lydsampler */
 void updateSound (int cpuCycles);
+/* flush sound up to current CPU cycle (call before AY register writes) */
+void soundFlush (void);
+/* reset cycle debt tracker (call from LoopZ80 after updateSound) */
+void soundResetDebt (void);
+/* returns TRUE when audio output is driving emulation timing */
+tiki_bool soundIsActive (void);
+/* enable/disable audio-paced blocking (disable for fast mode) */
+void soundSetPacing (tiki_bool enable);
 
 /*****************************************************************************/
 /* video.c                                                                   */

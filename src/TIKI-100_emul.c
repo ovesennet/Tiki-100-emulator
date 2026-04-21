@@ -50,7 +50,9 @@ word LoopZ80 (register Z80 *R) {
   if (done) return INT_QUIT;
   if (cpuHalted) return INT_QUIT;
   updateCTC (cpu.IPeriod);
-  updateSound (cpu.IPeriod);
+  /* generate audio for remaining cycles not yet flushed by soundFlush() */
+  soundFlush ();
+  soundResetDebt ();
   if (--guiCount == 0) {
     loopEmul (20);
     guiCount = 20;

@@ -999,6 +999,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
           break;
         case IDM_SPEED_TOGGLE:
           slowDown = SendMessage (hwndSpeedToggle, BM_GETCHECK, 0, 0);
+          soundSetPacing (slowDown);
           LOG_I("Speed limit %s", slowDown ? "enabled" : "disabled");
           break;
         case IDM_FULLSCREEN:
@@ -1138,6 +1139,7 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
           
           /* begrense hastighet */
           slowDown = SendDlgItemMessage (hdwnd, IDD_HASTIGHET, BM_GETCHECK, 0, 0);
+          soundSetPacing (slowDown);
           SendMessage (hwndSpeedToggle, BM_SETCHECK, slowDown ? BST_CHECKED : BST_UNCHECKED, 0);
 
           /* forandre vindus-størrelse */
@@ -1963,7 +1965,7 @@ void loopEmul (int ms) {
   /* decay HDD activity LEDs so short bursts stay visible briefly */
   hddLedTick();
   /* senk hastigheten */
-  if (slowDown) {
+  if (slowDown && !soundIsActive()) {
     static tiki_bool firstTime = TRUE;
     static LARGE_INTEGER lastTime;
     LARGE_INTEGER currentTime;
