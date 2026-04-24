@@ -1,4 +1,4 @@
-/* protos.h V1.1.0
+/* protos.h V1.3.0
  *
  * Prototyper for funksjoner som kun skal brukes av den systemuavhengige koden. 
  * Resten av prototypene er i TIKI-100_emul.h

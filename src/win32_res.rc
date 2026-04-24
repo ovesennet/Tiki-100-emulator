@@ -1,4 +1,4 @@
-/* win32_res.rc V1.2.0
+/* win32_res.rc V1.3.0
  *
  * Win32 resources for TIKI-100_emul
  * Copyright (C) Asbjorn Djupdal 2000-2001
@@ -13,6 +13,9 @@ menu MENU {
    POPUP "&Emulator" {
       MENUITEM "&Reset", IDM_RESET
       MENUITEM "&Settings...", IDM_INNSTILLINGER
+      MENUITEM SEPARATOR
+      MENUITEM "S&leep", IDM_SLEEP
+      MENUITEM SEPARATOR
       MENUITEM "&About...", IDM_OM
       MENUITEM "E&xit", IDM_AVSLUTT
    }
@@ -40,30 +43,31 @@ menu MENU {
    }
 }
 
-dialog DIALOG DISCARDABLE  30, 30, 269, 137
+dialog DIALOG DISCARDABLE  30, 30, 269, 147
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "TIKI-100 Emulator settings"
 {
-    DEFPUSHBUTTON   "OK", IDD_OK, 155, 114, 50, 14
-    PUSHBUTTON      "Cancel", IDD_AVBRYT, 211, 114, 50, 14
+    DEFPUSHBUTTON   "OK", IDD_OK, 155, 124, 50, 14
+    PUSHBUTTON      "Cancel", IDD_AVBRYT, 211, 124, 50, 14
 
     AUTOCHECKBOX    "Limit speed", IDD_HASTIGHET, 7, 7, 63, 10
+    AUTOCHECKBOX    "Restore previous disks", IDD_RESTOREDISKS, 7, 17, 100, 10
 
-    GROUPBOX        "Screen scaling", -1, 7, 26, 121, 78
-    EDITTEXT        IDD_40EDIT, 21, 42, 25, 14, ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER
-    EDITTEXT        IDD_80EDIT, 21, 61, 25, 14, ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER
-    LTEXT           "40 column screen", -1, 55, 45, 65, 8
-    LTEXT           "80 column screen", -1, 55, 64, 65, 8
-    AUTOCHECKBOX    "Keep aspect ratio", IDD_BEVARFORHOLD, 21, 80, 75, 10
+    GROUPBOX        "Screen scaling", -1, 7, 36, 121, 78
+    EDITTEXT        IDD_40EDIT, 21, 52, 25, 14, ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER
+    EDITTEXT        IDD_80EDIT, 21, 71, 25, 14, ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER
+    LTEXT           "40 column screen", -1, 55, 55, 65, 8
+    LTEXT           "80 column screen", -1, 55, 74, 65, 8
+    AUTOCHECKBOX    "Keep aspect ratio", IDD_BEVARFORHOLD, 21, 90, 75, 10
 
-    GROUPBOX        "Ports", -1, 133, 9, 128, 95
-    AUTOCHECKBOX    "Set ST 28 b", IDD_ST28B, 145, 23, 56, 10
-    EDITTEXT        IDD_P1EDIT, 145, 42, 42, 14, ES_AUTOHSCROLL
-    EDITTEXT        IDD_P2EDIT, 145, 61, 42, 14, ES_AUTOHSCROLL
-    EDITTEXT        IDD_P3EDIT, 145, 80, 42, 14, ES_AUTOHSCROLL
-    AUTOCHECKBOX    "Serial port P1", IDD_P1, 193, 45, 63, 8
-    AUTOCHECKBOX    "Serial port P2", IDD_P2, 193, 64, 63, 8
-    AUTOCHECKBOX    "Parallel port P3", IDD_P3, 193, 83, 68, 8
+    GROUPBOX        "Ports", -1, 133, 19, 128, 95
+    AUTOCHECKBOX    "Set ST 28 b", IDD_ST28B, 145, 33, 56, 10
+    EDITTEXT        IDD_P1EDIT, 145, 52, 42, 14, ES_AUTOHSCROLL
+    EDITTEXT        IDD_P2EDIT, 145, 71, 42, 14, ES_AUTOHSCROLL
+    EDITTEXT        IDD_P3EDIT, 145, 90, 42, 14, ES_AUTOHSCROLL
+    AUTOCHECKBOX    "Serial port P1", IDD_P1, 193, 55, 63, 8
+    AUTOCHECKBOX    "Serial port P2", IDD_P2, 193, 74, 63, 8
+    AUTOCHECKBOX    "Parallel port P3", IDD_P3, 193, 93, 68, 8
 }
 
 icon ICON win32.ico

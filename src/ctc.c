@@ -1,4 +1,4 @@
-/* ctc.c V1.1.0
+/* ctc.c V1.3.0
  *
  * Z80 CTC emulering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -6,6 +6,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 
 /* data for en seriekanal */
 struct ctcParams {
@@ -145,5 +146,22 @@ int getCtc (int c) {
     case 3:  return params3.out;
   }
   return 0;
+}
+
+/* sleep save/restore */
+tiki_bool ctcSleepSave (FILE *f) {
+  if (fwrite (&params0, sizeof(params0), 1, f) != 1) return FALSE;
+  if (fwrite (&params1, sizeof(params1), 1, f) != 1) return FALSE;
+  if (fwrite (&params2, sizeof(params2), 1, f) != 1) return FALSE;
+  if (fwrite (&params3, sizeof(params3), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool ctcSleepRestore (FILE *f) {
+  if (fread (&params0, sizeof(params0), 1, f) != 1) return FALSE;
+  if (fread (&params1, sizeof(params1), 1, f) != 1) return FALSE;
+  if (fread (&params2, sizeof(params2), 1, f) != 1) return FALSE;
+  if (fread (&params3, sizeof(params3), 1, f) != 1) return FALSE;
+  return TRUE;
 }
 

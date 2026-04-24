@@ -1,4 +1,4 @@
-/* TIKI-100_emul.h V1.2.0
+/* TIKI-100_emul.h V1.3.0
  *
  * Definisjoner og konstanter nyttige for alle TIKI-100_emul moduler
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -202,6 +202,12 @@ void contCpu (void);
 
 /* Platform-specific: runs message pump while CPU is halted */
 void haltMessagePump (void);
+
+/* Sleep/wake: platform sets sleepPending before runEmul() if a sleep
+ * file exists.  runEmul() calls wakeFromSleep() after ROM load + reset
+ * to overwrite the freshly-reset state with the saved snapshot. */
+extern tiki_bool sleepPending;
+tiki_bool wakeFromSleep (void);  /* implemented in platform code */
 
 #ifdef DEBUG
 /* Åpner avlusnings monitor */

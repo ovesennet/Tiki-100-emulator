@@ -97,6 +97,16 @@ The emulator looks for `tiki.rom` in the current working directory. Disk images 
 
 ## Changes from original v1.1.1
 
+### v1.3.0 (Arctic Retro)
+
+**New features:**
+- **Sleep / Wake**: Save the complete emulator state to disk and quit, then resume exactly where you left off on next launch — like Windows sleep/hibernate. Saves CPU registers, RAM, video RAM, palette, sound chip state, disk controller state, serial/keyboard/CTC state, floppy disk images, and HDD mount paths. Select *Emulator → Sleep* to save and exit; the emulator automatically wakes on next startup and deletes the sleep file (one-shot). If the sleep file is missing or corrupt, the emulator falls back to a normal cold boot
+- **Z80 CPU load graph**: The Z80 information window now includes a Task Manager-style scrolling graph showing CPU utilization over the last 60 seconds. Uses a PC-diversity metric (unique Z80 addresses executed per second) to distinguish active computation from idle keyboard-polling loops
+- **Restore previous disks**: New checkbox in the Settings dialog — when enabled, the emulator remembers which floppy images were loaded and automatically re-mounts them on next launch. Floppy paths are persisted in the `[FloppyDisks]` section of `tikiemul.ini`
+
+**Bug fixes:**
+- **Sound continuing after quit**: Fixed a bug where the audio subsystem's inner message pump in `submitBuffer()` would consume and dispatch the `WM_QUIT` message, preventing the emulator process from terminating and causing sound to continue playing after closing the window. The audio wait loop now detects `WM_QUIT`, re-posts it, and returns immediately
+
 ### v1.2.1 (Arctic Retro)
 
 **Audio improvements:**

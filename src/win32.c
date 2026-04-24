@@ -1,4 +1,4 @@
-/* win32.c V1.2.0
+/* win32.c V1.3.0
  *
  * Win32 systemspesifikk kode for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -11,6 +11,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <windows.h>
 #include <commctrl.h>
@@ -23,6 +24,9 @@
 #include "z80info.h"
 #include "memview.h"
 #include "diskview.h"
+#include "sleep.h"
+
+extern Z80 cpu;
 
 #define ERROR_CAPTION     "TIKI-100 Emulator error"
 #define STATUSBAR_HEIGHT  19
@@ -31,6 +35,9 @@
 #define MIN_WINDOW_WIDTH  350
 #define MRU_MAX_ENTRIES   8
 #define INI_FILENAME      "tikiemul.ini"
+#define SLEEP_FILENAME    "tiki-sleep.bin"
+#define SLEEP_MAGIC       0x544B534C  /* "TKSL" */
+#define SLEEP_VERSION     1
 
 /* protos */
 int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, int nWinMode);
@@ -61,6 +68,9 @@ static void mruBuildMenu (void);
 static void saveWindowPos (void);
 static void loadWindowPos (int *x, int *y);
 static void setDarkTitleBar (HWND hWnd);
+static void getSleepPath (char *buf, int bufSize);
+static tiki_bool performSleep (void);
+static tiki_bool performWake (void);
 
 /* variabler */
 
@@ -159,6 +169,14 @@ static int currentFps = 0;
 static int frameCount = 0;
 static LARGE_INTEGER fpsLastTime;
 static LARGE_INTEGER fpsFreq;
+/* CPU load tracking for the Z80 info graph (Z80 PC diversity) */
+int cpuLoadHistory[CPU_LOAD_HISTORY_SIZE]; /* circular buffer, 0-100 */
+int cpuLoadHistoryPos = 0;   /* next write position */
+int cpuLoadHistoryCount = 0; /* samples stored so far (max 60) */
+int cpuLoadCurrent = 0;      /* latest 1-second average */
+static LARGE_INTEGER cpuLoadWallStart;
+static LARGE_INTEGER cpuLoadFreq;
+static tiki_bool cpuLoadInit = FALSE;
 static WINDOWPLACEMENT wpPrev;
 static LONG savedStyle;
 static HMENU savedMenu;
@@ -168,6 +186,7 @@ static char diskNameB[260] = "";
 static char diskPathA[MAX_PATH] = "";
 static char diskPathB[MAX_PATH] = "";
 static char iniPath[MAX_PATH] = "";
+static tiki_bool restoreDisks = FALSE;
 static char mruList[MRU_MAX_ENTRIES][MAX_PATH];
 static int mruCount = 0;
 
@@ -263,6 +282,24 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   /* auto-remount HDDs from the [HardDisks] INI section */
   hddIniLoad ();
 
+  /* load "restore previous disks" setting */
+  restoreDisks = GetPrivateProfileInt ("Settings", "RestoreDisks", 0, iniPath) ? TRUE : FALSE;
+
+  /* auto-remount floppy disks from the [FloppyDisks] INI section */
+  if (restoreDisks) {
+    char val[MAX_PATH];
+    GetPrivateProfileString ("FloppyDisks", "DiskA", "", val, MAX_PATH, iniPath);
+    if (val[0] && !hddAnyMounted ()) {
+      LOG_I("Auto-remounted floppy A: %s", val);
+      loadDiskFromFile (0, val);
+    }
+    GetPrivateProfileString ("FloppyDisks", "DiskB", "", val, MAX_PATH, iniPath);
+    if (val[0]) {
+      LOG_I("Auto-remounted floppy B: %s", val);
+      loadDiskFromFile (1, val);
+    }
+  }
+
   /* Parse command-line disk image arguments.
    * HDD (-hd0 / -hd1) is parsed BEFORE floppy (-diska / -diskb) so the
    * "HDD blocks floppy A" rule is applied consistently: if both are
@@ -349,6 +386,16 @@ int WINAPI WinMain (HINSTANCE hThisInst, HINSTANCE hPrevInst, LPSTR lpszArgs, in
   
   /* initialiser lyd */
   soundInit();
+
+  /* check for a pending sleep-state snapshot */
+  {
+    char sleepPath[MAX_PATH];
+    getSleepPath (sleepPath, MAX_PATH);
+    if (GetFileAttributes (sleepPath) != INVALID_FILE_ATTRIBUTES) {
+      sleepPending = TRUE;
+      LOG_I("Sleep file found — will wake from %s", sleepPath);
+    }
+  }
 
   /* run emulator */
   if (!runEmul()) {
@@ -814,6 +861,13 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
       saveWindowPos();
       mruSave();
       hddIniSave();
+      /* save floppy disk paths and restoreDisks setting */
+      WritePrivateProfileString ("Settings", "RestoreDisks",
+                                 restoreDisks ? "1" : "0", iniPath);
+      WritePrivateProfileString ("FloppyDisks", "DiskA",
+                                 diskPathA[0] ? diskPathA : NULL, iniPath);
+      WritePrivateProfileString ("FloppyDisks", "DiskB",
+                                 diskPathB[0] ? diskPathB : NULL, iniPath);
       DestroyWindow (hwnd);
       break;
     case WM_DESTROY:
@@ -880,6 +934,14 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
                       "TIKI-100 Emulator - Keyboard shortcuts",
                       MB_OK | MB_ICONINFORMATION);
           break;
+        case IDM_SLEEP:
+          if (performSleep ()) {
+            DestroyWindow (hwnd);
+          } else {
+            MessageBox (hwnd, "Failed to save sleep state!",
+                        ERROR_CAPTION, MB_OK | MB_ICONERROR);
+          }
+          break;
         case IDM_AVSLUTT:
           DestroyWindow (hwnd);
           break;
@@ -945,7 +1007,7 @@ static LRESULT CALLBACK WindowFunc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             z80InfoSetHwndPtr (&hwndZ80Info);
             hwndZ80Info = CreateWindowEx (WS_EX_TOOLWINDOW, "Z80InfoClass", "Z80 Information",
               WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
-              CW_USEDEFAULT, CW_USEDEFAULT, 280, 360,
+              CW_USEDEFAULT, CW_USEDEFAULT, 300, 520,
               hwnd, NULL, appInst, NULL);
             ShowWindow (hwndZ80Info, SW_SHOW);
           }
@@ -1118,6 +1180,7 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
                                      48, 71, 11, 14, hdwnd, IDD_80SPIN, appInst, GetDlgItem (hdwnd, IDD_80EDIT),
                                      2, 1, size80x);
       if (slowDown) SendDlgItemMessage (hdwnd, IDD_HASTIGHET, BM_SETCHECK, 1, 0);
+      if (restoreDisks) SendDlgItemMessage (hdwnd, IDD_RESTOREDISKS, BM_SETCHECK, 1, 0);
       if (scanlines) SendDlgItemMessage (hdwnd, IDD_BEVARFORHOLD, BM_SETCHECK, 1, 0);
       if (st28b) SendDlgItemMessage (hdwnd, IDD_ST28B, BM_SETCHECK, 1, 0);
       if (port1) SendDlgItemMessage (hdwnd, IDD_P1, BM_SETCHECK, 1, 0);
@@ -1141,6 +1204,9 @@ static BOOL CALLBACK DialogFunc (HWND hdwnd, UINT message, WPARAM wParam, LPARAM
           slowDown = SendDlgItemMessage (hdwnd, IDD_HASTIGHET, BM_GETCHECK, 0, 0);
           soundSetPacing (slowDown);
           SendMessage (hwndSpeedToggle, BM_SETCHECK, slowDown ? BST_CHECKED : BST_UNCHECKED, 0);
+
+          /* restore previous disks on startup */
+          restoreDisks = SendDlgItemMessage (hdwnd, IDD_RESTOREDISKS, BM_GETCHECK, 0, 0);
 
           /* forandre vindus-størrelse */
           s40x = SendMessage (ud40Wnd, UDM_GETPOS, 0, 0);
@@ -2000,6 +2066,37 @@ void loopEmul (int ms) {
       fpsLastTime = now;
     }
   }
+  /* CPU load tracking -- Z80 utilization via unique PC address count */
+  {
+    LARGE_INTEGER wallNow;
+    QueryPerformanceCounter (&wallNow);
+    if (!cpuLoadInit) {
+      QueryPerformanceFrequency (&cpuLoadFreq);
+      cpuLoadWallStart = wallNow;
+      cpuLoadInit = TRUE;
+    } else {
+      double wallSec = (double)(wallNow.QuadPart - cpuLoadWallStart.QuadPart) / cpuLoadFreq.QuadPart;
+      if (wallSec >= 1.0) {
+        unsigned int unique = z80UniquePC;
+        int pct;
+        /* A keyboard polling loop hits ~5-15 unique PCs.
+         * Active programs touch hundreds to thousands.
+         * Scale: <=20 unique = 0%, >=1000 unique = 100% */
+        if (unique <= 20) pct = 0;
+        else if (unique >= 1000) pct = 100;
+        else pct = (int)((unique - 20) * 100 / (1000 - 20));
+        cpuLoadCurrent = pct;
+        cpuLoadHistory[cpuLoadHistoryPos] = pct;
+        cpuLoadHistoryPos = (cpuLoadHistoryPos + 1) % CPU_LOAD_HISTORY_SIZE;
+        if (cpuLoadHistoryCount < CPU_LOAD_HISTORY_SIZE)
+          cpuLoadHistoryCount++;
+        /* reset for next window */
+        z80UniquePC = 0;
+        memset (z80PcBitmap, 0, 8192);
+        cpuLoadWallStart = wallNow;
+      }
+    }
+  }
   /* oppdater skjerm */
   if (updateWindow || showFps) {
     if (isFullscreen) {
@@ -2051,6 +2148,7 @@ void loopEmul (int ms) {
         memdc = NULL;
         DeleteObject (hbit);
         hbit = NULL;
+        soundCleanup();   /* stop audio immediately on quit */
         quitEmul();
         return;  /* stop processing messages after cleanup */
       } else {
@@ -2339,6 +2437,204 @@ byte getChar (int port) {
   }
   return value;
 }
+/*****************************************************************************/
+/* Sleep / Wake — save and restore complete emulator state                   */
+/*****************************************************************************/
+
+static void getSleepPath (char *buf, int bufSize) {
+  GetModuleFileName (NULL, buf, bufSize);
+  char *slash = strrchr (buf, '\\');
+  if (slash) *(slash + 1) = '\0';
+  strncat (buf, SLEEP_FILENAME, bufSize - strlen (buf) - 1);
+}
+
+/* Write a NUL-terminated string preceded by its 32-bit length (including the NUL). */
+static tiki_bool writeStr (FILE *f, const char *s) {
+  unsigned int len = (unsigned int)(strlen (s) + 1);
+  if (fwrite (&len, sizeof(len), 1, f) != 1) return FALSE;
+  if (fwrite (s, 1, len, f) != len) return FALSE;
+  return TRUE;
+}
+
+/* Read a NUL-terminated string preceded by its 32-bit length. */
+static tiki_bool readStr (FILE *f, char *buf, int bufSize) {
+  unsigned int len;
+  if (fread (&len, sizeof(len), 1, f) != 1) return FALSE;
+  if (len == 0 || len > (unsigned int)bufSize) return FALSE;
+  if (fread (buf, 1, len, f) != len) return FALSE;
+  buf[len - 1] = '\0';
+  return TRUE;
+}
+
+static tiki_bool performSleep (void) {
+  char path[MAX_PATH];
+  getSleepPath (path, MAX_PATH);
+
+  FILE *f = fopen (path, "wb");
+  if (!f) return FALSE;
+
+  /* magic + version */
+  unsigned int magic = SLEEP_MAGIC;
+  unsigned int ver   = SLEEP_VERSION;
+  if (fwrite (&magic, sizeof(magic), 1, f) != 1) goto fail;
+  if (fwrite (&ver, sizeof(ver), 1, f) != 1) goto fail;
+
+  /* Z80 CPU state */
+  if (fwrite (&cpu, sizeof(cpu), 1, f) != 1) goto fail;
+
+  /* palette */
+  if (fwrite (colors, sizeof(colors), 1, f) != 1) goto fail;
+
+  /* floppy paths and image data */
+  if (!writeStr (f, diskPathA)) goto fail;
+  if (!writeStr (f, diskPathB)) goto fail;
+  int i;
+  for (i = 0; i < 2; i++) {
+    if (fwrite (&fileSize[i], sizeof(DWORD), 1, f) != 1) goto fail;
+    if (fileSize[i] > 0 && dsk[i]) {
+      if (fwrite (dsk[i], 1, fileSize[i], f) != fileSize[i]) goto fail;
+    }
+  }
+
+  /* floppy display names */
+  if (!writeStr (f, diskNameA)) goto fail;
+  if (!writeStr (f, diskNameB)) goto fail;
+
+  /* HDD paths (images are on-disk, no need to save contents) */
+  if (!writeStr (f, hddPath0)) goto fail;
+  if (!writeStr (f, hddPath1)) goto fail;
+
+  /* per-module state */
+  if (!memSleepSave (f)) goto fail;
+  if (!videoSleepSave (f)) goto fail;
+  if (!ctcSleepSave (f)) goto fail;
+  if (!diskSleepSave (f)) goto fail;
+  if (!soundSleepSave (f)) goto fail;
+  if (!serialSleepSave (f)) goto fail;
+  if (!kbdSleepSave (f)) goto fail;
+  if (!hddSleepSave (f)) goto fail;
+
+  fclose (f);
+  LOG_I("Sleep state saved to %s", path);
+  return TRUE;
+
+fail:
+  fclose (f);
+  DeleteFile (path);
+  return FALSE;
+}
+
+/* Helper: re-insert a floppy from saved image data (same geometry switch as loadDiskFromFile). */
+static void reinsertFloppy (int drive) {
+  if (fileSize[drive] == 0 || !dsk[drive]) return;
+  switch (fileSize[drive]) {
+    case 40*1*18*128: insertDisk (drive, dsk[drive], 40, 1, 18, 128); break;
+    case 40*1*10*512: insertDisk (drive, dsk[drive], 40, 1, 10, 512); break;
+    case 40*2*10*512: insertDisk (drive, dsk[drive], 40, 2, 10, 512); break;
+    case 80*2*10*512: insertDisk (drive, dsk[drive], 80, 2, 10, 512); break;
+    default:
+      LOG_W("Wake: unsupported floppy size %lu for drive %d", (unsigned long)fileSize[drive], drive);
+      free (dsk[drive]);
+      dsk[drive] = NULL;
+      fileSize[drive] = 0;
+      break;
+  }
+}
+
+static tiki_bool performWake (void) {
+  char path[MAX_PATH];
+  getSleepPath (path, MAX_PATH);
+
+  FILE *f = fopen (path, "rb");
+  if (!f) return FALSE;
+
+  /* magic + version */
+  unsigned int magic, ver;
+  if (fread (&magic, sizeof(magic), 1, f) != 1) goto fail;
+  if (fread (&ver, sizeof(ver), 1, f) != 1) goto fail;
+  if (magic != SLEEP_MAGIC || ver != SLEEP_VERSION) goto fail;
+
+  /* Z80 CPU state */
+  if (fread (&cpu, sizeof(cpu), 1, f) != 1) goto fail;
+
+  /* palette */
+  if (fread (colors, sizeof(colors), 1, f) != 1) goto fail;
+
+  /* floppy paths and image data */
+  if (!readStr (f, diskPathA, MAX_PATH)) goto fail;
+  if (!readStr (f, diskPathB, MAX_PATH)) goto fail;
+  int i;
+  for (i = 0; i < 2; i++) {
+    if (fread (&fileSize[i], sizeof(DWORD), 1, f) != 1) goto fail;
+    free (dsk[i]);
+    dsk[i] = NULL;
+    if (fileSize[i] > 0) {
+      dsk[i] = (byte *)malloc (fileSize[i]);
+      if (!dsk[i]) goto fail;
+      if (fread (dsk[i], 1, fileSize[i], f) != fileSize[i]) goto fail;
+    }
+  }
+
+  /* floppy display names */
+  if (!readStr (f, diskNameA, 260)) goto fail;
+  if (!readStr (f, diskNameB, 260)) goto fail;
+
+  /* HDD paths */
+  char tmpHdd0[MAX_PATH], tmpHdd1[MAX_PATH];
+  if (!readStr (f, tmpHdd0, MAX_PATH)) goto fail;
+  if (!readStr (f, tmpHdd1, MAX_PATH)) goto fail;
+
+  /* per-module state */
+  if (!memSleepRestore (f)) goto fail;
+  if (!videoSleepRestore (f)) goto fail;
+  if (!ctcSleepRestore (f)) goto fail;
+  if (!diskSleepRestore (f)) goto fail;
+  if (!soundSleepRestore (f)) goto fail;
+  if (!serialSleepRestore (f)) goto fail;
+  if (!kbdSleepRestore (f)) goto fail;
+  if (!hddSleepRestore (f)) goto fail;
+
+  fclose (f);
+
+  /* re-insert floppies into the disk controller */
+  reinsertFloppy (0);
+  reinsertFloppy (1);
+
+  /* re-mount HDDs from saved paths */
+  if (tmpHdd0[0]) {
+    if (insertHdd (0, tmpHdd0)) {
+      strncpy (hddPath0, tmpHdd0, MAX_PATH - 1);
+      hddPath0[MAX_PATH - 1] = '\0';
+    }
+  }
+  if (tmpHdd1[0]) {
+    if (insertHdd (1, tmpHdd1)) {
+      strncpy (hddPath1, tmpHdd1, MAX_PATH - 1);
+      hddPath1[MAX_PATH - 1] = '\0';
+    }
+  }
+
+  /* rebuild the screen bitmap from restored video RAM + palette */
+  videoRedrawAll ();
+
+  /* delete the sleep file — one-shot restore */
+  DeleteFile (path);
+  LOG_I("Wake: restored state from %s", path);
+  return TRUE;
+
+fail:
+  fclose (f);
+  /* delete the corrupt/incompatible sleep file so we don't retry every launch */
+  DeleteFile (path);
+  LOG_W("Wake: failed to restore from %s — deleted", path);
+  return FALSE;
+}
+
+/* Platform-facing entry point called from runEmul() */
+tiki_bool wakeFromSleep (void) {
+  return performWake ();
+}
+
 /* send tegn til skriver */
 void printChar (byte value) {
   DWORD bytesWritten;

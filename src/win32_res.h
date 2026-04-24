@@ -1,4 +1,4 @@
-/* win32_res.h V1.1.0
+/* win32_res.h V1.3.0
  *
  * Konstanter for win32 ressurser
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -59,3 +59,6 @@
 #define IDM_HENT_HDD1       51
 #define IDM_FJERN_HDD0      52
 #define IDM_FJERN_HDD1      53
+
+#define IDD_RESTOREDISKS    54
+#define IDM_SLEEP           55

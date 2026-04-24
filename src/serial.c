@@ -1,4 +1,4 @@
-/* serial.c V1.1.0
+/* serial.c V1.3.0
  *
  * Z80 DART emulering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2001
@@ -6,6 +6,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 
 enum rxiType {
   RXI_NONE, RXI_FIRST, RXI_ALL_PAR_CHANGE_VEC, RXI_ALL_PAR_DONT_CHANGE_VEC
@@ -203,4 +204,21 @@ void charAvailable (int port) {
       IntZ80 (&cpu, intVector);
       break;
   }
+}
+
+/* sleep save/restore */
+tiki_bool serialSleepSave (FILE *f) {
+  if (fwrite (&st28b, sizeof(st28b), 1, f) != 1) return FALSE;
+  if (fwrite (&serAParams, sizeof(serAParams), 1, f) != 1) return FALSE;
+  if (fwrite (&serBParams, sizeof(serBParams), 1, f) != 1) return FALSE;
+  if (fwrite (&intVector, sizeof(intVector), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool serialSleepRestore (FILE *f) {
+  if (fread (&st28b, sizeof(st28b), 1, f) != 1) return FALSE;
+  if (fread (&serAParams, sizeof(serAParams), 1, f) != 1) return FALSE;
+  if (fread (&serBParams, sizeof(serBParams), 1, f) != 1) return FALSE;
+  if (fread (&intVector, sizeof(intVector), 1, f) != 1) return FALSE;
+  return TRUE;
 }

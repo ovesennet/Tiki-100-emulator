@@ -1,4 +1,4 @@
-/* TIKI-100_emul.c V1.1.0
+/* TIKI-100_emul.c V1.3.0
  *
  * Hovedmodul for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -12,6 +12,11 @@
 Z80 cpu;
 static tiki_bool done = FALSE;
 tiki_bool cpuHalted = FALSE;
+tiki_bool sleepPending = FALSE;
+
+/* Z80 activity tracking: bitmap of unique PC addresses visited */
+unsigned char z80PcBitmap[8192]; /* 65536 bits, one per Z80 address */
+unsigned int z80UniquePC = 0;    /* count of unique PCs this window */
 
 /*****************************************************************************/
 
@@ -31,6 +36,15 @@ tiki_bool runEmul (void) {
   cpu.IPeriod = 4000;
   if (initMem()) {
     ResetZ80 (&cpu);
+    if (sleepPending) {
+      sleepPending = FALSE;
+      if (!wakeFromSleep ()) {
+        /* wake failed — re-reset to a clean state and cold-boot */
+        ResetZ80 (&cpu);
+        cpu.IPeriod = 4000;
+        initMem ();
+      }
+    }
     for (;;) {
       RunZ80 (&cpu);
       if (done) break;
@@ -49,6 +63,16 @@ word LoopZ80 (register Z80 *R) {
   static int guiCount = 20;
   if (done) return INT_QUIT;
   if (cpuHalted) return INT_QUIT;
+  /* track unique PC addresses for Z80 utilization graph */
+  {
+    word pc = R->PC.W;
+    unsigned int byteIdx = pc >> 3;
+    unsigned char bitMask = 1 << (pc & 7);
+    if (!(z80PcBitmap[byteIdx] & bitMask)) {
+      z80PcBitmap[byteIdx] |= bitMask;
+      z80UniquePC++;
+    }
+  }
   updateCTC (cpu.IPeriod);
   /* generate audio for remaining cycles not yet flushed by soundFlush() */
   soundFlush ();

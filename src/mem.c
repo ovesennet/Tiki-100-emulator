@@ -1,4 +1,4 @@
-/* mem.c V1.1.0
+/* mem.c V1.3.0
  *
  * Tar seg av minne-håndtering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -6,6 +6,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 #include <stdio.h>
 
 #define ROM_FILENAME    "tiki.rom"
@@ -239,4 +240,19 @@ byte InZ80 (register word port) {
     default:
       return 0xff;
   }
+}
+
+/* sleep save/restore */
+tiki_bool memSleepSave (FILE *f) {
+  if (fwrite (ram, 1, sizeof(ram), f) != sizeof(ram)) return FALSE;
+  if (fwrite (&gfxIn, sizeof(gfxIn), 1, f) != 1) return FALSE;
+  if (fwrite (&romIn, sizeof(romIn), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool memSleepRestore (FILE *f) {
+  if (fread (ram, 1, sizeof(ram), f) != sizeof(ram)) return FALSE;
+  if (fread (&gfxIn, sizeof(gfxIn), 1, f) != 1) return FALSE;
+  if (fread (&romIn, sizeof(romIn), 1, f) != 1) return FALSE;
+  return TRUE;
 }

@@ -1,4 +1,4 @@
-/* keyboard.c V1.1.0
+/* keyboard.c V1.3.0
  *
  * Tastatur emulering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -6,6 +6,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 
 /* variabler */
 
@@ -36,5 +37,16 @@ void resetKeyboard (void) {
 byte readKeyboard (void) {
   if (column >= 12) column = 0;
   return testKey (keyMatrix[column++]);
+}
+
+/* sleep save/restore */
+tiki_bool kbdSleepSave (FILE *f) {
+  if (fwrite (&column, sizeof(column), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool kbdSleepRestore (FILE *f) {
+  if (fread (&column, sizeof(column), 1, f) != 1) return FALSE;
+  return TRUE;
 }
 

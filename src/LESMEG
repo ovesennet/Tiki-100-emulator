@@ -1,66 +1,66 @@
-TIKI-100_emul V1.1.1, 25 august 2001
+TIKI-100_emul V1.1.1, 25 august 2001 (orignal info)
 ------------------------------------
 
-Dette er kildefilene til TIKI-100_emul. Denne fila gir en oppskrift på
-hvordan kompilere. Den gir også en generell beskrivelse av
-kildefilene dersom du skulle være interessert i det, men det er ikke
-nødvendig dersom du bare vil kompilere og få en kjørbar emulator. For
+Dette er kildefilene til TIKI-100_emul. Denne fila gir en oppskrift pï¿½
+hvordan kompilere. Den gir ogsï¿½ en generell beskrivelse av
+kildefilene dersom du skulle vï¿½re interessert i det, men det er ikke
+nï¿½dvendig dersom du bare vil kompilere og fï¿½ en kjï¿½rbar emulator. For
 mer informasjon om bruk av emulatoren, se TIKI-100_emul.txt. 
 
 Bortsett fra filene til Z80-emulatoren, er alle kildefilene mine. Jeg
-gir tillatelse til å bruke og spre disse fritt. Men ønsker du å gjøre
+gir tillatelse til ï¿½ bruke og spre disse fritt. Men ï¿½nsker du ï¿½ gjï¿½re
 forandringer vil jeg at du tar kontakt med meg. Dette fordi jeg ikke
-anser meg for ferdig med emulatoren enda. På den måten unngår vi at
-flere forskjellige personer jobber på de samme tingene. Men kom gjerne
-med forslag til hvordan ting kan gjøres bedre. 
+anser meg for ferdig med emulatoren enda. Pï¿½ den mï¿½ten unngï¿½r vi at
+flere forskjellige personer jobber pï¿½ de samme tingene. Men kom gjerne
+med forslag til hvordan ting kan gjï¿½res bedre. 
 
-Disse kildefilene skal ikke brukes til kommersielle formål på noen som
-helst måte, hverken i original eller modifisert form. 
+Disse kildefilene skal ikke brukes til kommersielle formï¿½l pï¿½ noen som
+helst mï¿½te, hverken i original eller modifisert form. 
 
 Kompilering:
 ------------
 
-Kompilering skal være temmelig enkelt. Kildefilene er skrevet i
+Kompilering skal vï¿½re temmelig enkelt. Kildefilene er skrevet i
 ansi-c og skal kompilere med de aller fleste c-kompilatorer. Makefile
 er skrevet for GCC og GNU make. For unix vil du ofte ha det som trengs
-allerede. For win32 må du skaffe deg cygwin, som finnes gratis på
+allerede. For win32 mï¿½ du skaffe deg cygwin, som finnes gratis pï¿½
 http://www.cygwin.com. En full installasjon anbefales. Amigaversjonen
-kan kompileres med verktøyene fra Geek Gadgets som finnes gratis på
+kan kompileres med verktï¿½yene fra Geek Gadgets som finnes gratis pï¿½
 http://www.ninemoons.com. Dessuten trenger du NDK fra Amiga
-International, inc. Disse finner du bl.a på Amiga Developer CD. 
+International, inc. Disse finner du bl.a pï¿½ Amiga Developer CD. 
 
-Før kompilering må filen Makefile justeres til å passe ditt
-system. For Amiga og win32 vil dette bare bestå i å velge rett
-system. For unix må du i tillegg sette en del andre ting. Alt dette
-skal være forklart i Makefile.
+Fï¿½r kompilering mï¿½ filen Makefile justeres til ï¿½ passe ditt
+system. For Amiga og win32 vil dette bare bestï¿½ i ï¿½ velge rett
+system. For unix mï¿½ du i tillegg sette en del andre ting. Alt dette
+skal vï¿½re forklart i Makefile.
 
-Etter dette er det bare å skrive "make" i katalogen du har kildefilene
-i. Resultatet blir en kjørbar fil tikiemul eller tikiemul.exe. Kopier
-(minimum) denne fila og tiki.rom dit du ønsker å ha programmet. I
+Etter dette er det bare ï¿½ skrive "make" i katalogen du har kildefilene
+i. Resultatet blir en kjï¿½rbar fil tikiemul eller tikiemul.exe. Kopier
+(minimum) denne fila og tiki.rom dit du ï¿½nsker ï¿½ ha programmet. I
 tillegg anbefaler jeg at du kopierer plater-katalogen og
-TIKI-100_emul.txt til samme plass. Så skulle alt være klart til bruk. 
+TIKI-100_emul.txt til samme plass. Sï¿½ skulle alt vï¿½re klart til bruk. 
 
-Har du problemer, så ta kontakt med meg. 
+Har du problemer, sï¿½ ta kontakt med meg. 
 
 Generell beskrivelse av kildefiler:
 -----------------------------------
 
-Skal du forstå hvordan denne emulatoren virker, bør du kjenne til
-hvordan en TIKI-100 fungerer. Se på min TIKI-100 hjemmeside for mer
+Skal du forstï¿½ hvordan denne emulatoren virker, bï¿½r du kjenne til
+hvordan en TIKI-100 fungerer. Se pï¿½ min TIKI-100 hjemmeside for mer
 informasjon om det. 
 
-Disse filene skal være med:
+Disse filene skal vï¿½re med:
 
 Systemuavhengige filer (selve emulatorkoden):
-- TIKI-100_emul.c             Hovedmodul, inneholder toppnivå
+- TIKI-100_emul.c             Hovedmodul, inneholder toppnivï¿½
                               emulatorrutiner
 - TIKI-100_emul.h             Inneholder alle prototyper, konstanter
-                              etc. som er nødvendig for den
+                              etc. som er nï¿½dvendig for den
                               systemspesifikke koden. 
 - ctc.c                       Z80-CTC emulering
 - disk.c                      FD17xx emulering
-- keyboard.c                  Tastaturhåndtering
-- mem.c                       RAM og I/O-port håndtering
+- keyboard.c                  Tastaturhï¿½ndtering
+- mem.c                       RAM og I/O-port hï¿½ndtering
 - parallel.c                  Z80-PIO emulering
 - protos.h                    Prototyper for funksjoner internt i den
                               systemuavhengige koden. 
@@ -69,8 +69,8 @@ Systemuavhengige filer (selve emulatorkoden):
 - video.c                     Videoemulering
 
 Z80-emulator av Marat Fayzullin. Disse filene er inkludert med
-tillatelse men tilhører ikke meg. Les egen copyrightnotis i filene og
-se på http://www.komkon.org/fms/EMUL8 for mer informasjon:
+tillatelse men tilhï¿½rer ikke meg. Les egen copyrightnotis i filene og
+se pï¿½ http://www.komkon.org/fms/EMUL8 for mer informasjon:
 - Z80.c
 - Z80.h
 - Codes.h
@@ -85,7 +85,7 @@ Systemkode for Amiga:
 - amiga.c
 - amiga.cd                      Katalogdeskriptor (locale)
 - amiga_icons/*                 Diverse ikoner
-- amiga_translations/*          Oversettelser til andre språk
+- amiga_translations/*          Oversettelser til andre sprï¿½k
 
 Systemkode for win32:
 - win32.c                       
@@ -105,31 +105,31 @@ Andre filer:
 - plater/tiko_kjerne_v4.01.dsk  TIKO-systemdiskett
 - tiki.rom                      TIKI-100 rombilde
 - TIKI-100_emul.txt             Beskrivelse av emulatoren
-- LESMEG                        Filen du leser på nå
+- LESMEG                        Filen du leser pï¿½ nï¿½
 
 Som du ser kan kildefilene deles inn i 2 grupper. Den systemuavhengige
 koden som inneholder alt som kan programmeres uten bruk av annet enn
-standard c-bibliotek, og systemkoden som inneholder de tingene som må
+standard c-bibliotek, og systemkoden som inneholder de tingene som mï¿½
 programmeres for et spesielt system (bl.a GUI). Dette vil si at all 
 emulatorlogikk er adskilt fra systemkoden. 
 
-Grensesnittet mellom disse to delene er laget så enkelt som mulig og
+Grensesnittet mellom disse to delene er laget sï¿½ enkelt som mulig og
 er definert i TIKI-100_emul.h (i form av prototyper for funksjoner som
-må implementeres og funksjoner som kan kalles). Dette er den eneste
-fila man trenger kjennskap til dersom man ønsker å lage en versjon for
-et nytt system. Har du lyst til dette, så ta kontakt med meg.
+mï¿½ implementeres og funksjoner som kan kalles). Dette er den eneste
+fila man trenger kjennskap til dersom man ï¿½nsker ï¿½ lage en versjon for
+et nytt system. Har du lyst til dette, sï¿½ ta kontakt med meg.
 
 Emulatorens main() funksjon (eller tilsvarende) befinner seg i
-systemkoden. Når systemkoden er klar til å starte emulatorkoden kaller
-den runEmul() som tar over kontrollen (går i en uendelig loop). Hver
+systemkoden. Nï¿½r systemkoden er klar til ï¿½ starte emulatorkoden kaller
+den runEmul() som tar over kontrollen (gï¿½r i en uendelig loop). Hver
 80.000 cycle (skal tilsvare 20 ms) kalles funksjonen loopEmul() i
-systemkoden. Dette gjør systemkoden i stand til å måle og senke
+systemkoden. Dette gjï¿½r systemkoden i stand til ï¿½ mï¿½le og senke
 hastighet samt sjekke brukeraktivitet. Resten av funksjonene som
-systemkoden må implementere (definert i TIKI-100_emul.h) kalles
+systemkoden mï¿½ implementere (definert i TIKI-100_emul.h) kalles
 etterhvert som emulatoren har bruk for de. 
 
 Etter noe initialisering vil runEmul() starte Z80 emulator. Z80
-emulator trenger funksjoner for å lese/skrive til/fra
+emulator trenger funksjoner for ï¿½ lese/skrive til/fra
 RAM/ROM/IO. Disse (sammen med emulert RAM/ROM) er implementert i 
 mem.c. Disse funksjonene vil, hver gang Z80 emulator benytter I/O,
 kalle en funksjon i en av de andre c-filene. F.eks dersom Z80 leser
@@ -137,4 +137,4 @@ fra I/O-port 0x03 (tastatur-register) vil funksjonen readKeyboard() i
 keyboard.c kalles. Tilsvarende for alle andre I/O-porter. 
 
 ---
-Asbjørn Djupdal, djupdal@stud.ntnu.no
+Asbjï¿½rn Djupdal, djupdal@stud.ntnu.no

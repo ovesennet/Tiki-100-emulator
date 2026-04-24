@@ -1,4 +1,4 @@
-/* video.c V1.1.0
+/* video.c V1.3.0
  *
  * Grafikk emulering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -6,6 +6,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 #include <string.h>
 
 /* variabler */
@@ -119,5 +120,37 @@ void newOffset (byte newOffset) {
     /* oppdater scrollregister */
     vOffset = newOffset;
   }
+}
+
+/* sleep save/restore */
+tiki_bool videoSleepSave (FILE *f) {
+  if (fwrite (gfxRam, 1, sizeof(gfxRam), f) != sizeof(gfxRam)) return FALSE;
+  if (fwrite (&red, sizeof(red), 1, f) != 1) return FALSE;
+  if (fwrite (&green, sizeof(green), 1, f) != 1) return FALSE;
+  if (fwrite (&blue, sizeof(blue), 1, f) != 1) return FALSE;
+  if (fwrite (&res, sizeof(res), 1, f) != 1) return FALSE;
+  if (fwrite (&changeColor, sizeof(changeColor), 1, f) != 1) return FALSE;
+  if (fwrite (&colornumber, sizeof(colornumber), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool videoSleepRestore (FILE *f) {
+  if (fread (gfxRam, 1, sizeof(gfxRam), f) != sizeof(gfxRam)) return FALSE;
+  if (fread (&red, sizeof(red), 1, f) != 1) return FALSE;
+  if (fread (&green, sizeof(green), 1, f) != 1) return FALSE;
+  if (fread (&blue, sizeof(blue), 1, f) != 1) return FALSE;
+  if (fread (&res, sizeof(res), 1, f) != 1) return FALSE;
+  if (fread (&changeColor, sizeof(changeColor), 1, f) != 1) return FALSE;
+  if (fread (&colornumber, sizeof(colornumber), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+/* Force a full redraw of the screen from gfxRam — needed after sleep/wake
+ * because the platform screen bitmap is not part of the saved state. */
+void videoRedrawAll (void) {
+  int i;
+  changeRes (res);
+  for (i = 0; i < 32768; i++)
+    drawByte (i);
 }
 

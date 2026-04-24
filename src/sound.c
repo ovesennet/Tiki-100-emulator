@@ -1,4 +1,4 @@
-/* sound.c V1.2.1
+/* sound.c V1.3.0
  *
  * AY-3-8912 emulering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -14,6 +14,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 
 #include <windows.h>
 #include <mmsystem.h>
@@ -289,6 +290,12 @@ static void submitBuffer (void) {
     while (!(waveHdr[curBuf].dwFlags & WHDR_DONE)) {
       MSG msg;
       while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE)) {
+        if (msg.message == WM_QUIT) {
+          /* Re-post so loopEmul() sees it, and bail out */
+          PostQuitMessage ((int)msg.wParam);
+          audioOpen = FALSE;
+          return;
+        }
         TranslateMessage (&msg);
         DispatchMessage (&msg);
       }
@@ -502,4 +509,57 @@ void updateSound (int cpuCycles) {
 /* reset cycle debt — called from LoopZ80 after updateSound */
 void soundResetDebt (void) {
   cycleDebt = 0;
+}
+
+/* sleep save/restore */
+tiki_bool soundSleepSave (FILE *f) {
+  if (fwrite (ayRegs, 1, sizeof(ayRegs), f) != sizeof(ayRegs)) return FALSE;
+  if (fwrite (&ayRegSelect, sizeof(ayRegSelect), 1, f) != 1) return FALSE;
+  if (fwrite (&toneCountA, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&toneCountB, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&toneCountC, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&toneOutA, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&toneOutB, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&toneOutC, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&noiseCount, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&noiseOut, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&noiseLFSR, sizeof(unsigned int), 1, f) != 1) return FALSE;
+  if (fwrite (&envCount, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&envStep, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&envVolume, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&envHolding, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&envContinue, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&envAttack, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&envAlternate, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&envHold, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&sampleAccum, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&tickAccum, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&cycleDebt, sizeof(int), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool soundSleepRestore (FILE *f) {
+  if (fread (ayRegs, 1, sizeof(ayRegs), f) != sizeof(ayRegs)) return FALSE;
+  if (fread (&ayRegSelect, sizeof(ayRegSelect), 1, f) != 1) return FALSE;
+  if (fread (&toneCountA, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&toneCountB, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&toneCountC, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&toneOutA, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&toneOutB, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&toneOutC, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&noiseCount, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&noiseOut, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&noiseLFSR, sizeof(unsigned int), 1, f) != 1) return FALSE;
+  if (fread (&envCount, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&envStep, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&envVolume, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&envHolding, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&envContinue, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&envAttack, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&envAlternate, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&envHold, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&sampleAccum, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&tickAccum, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&cycleDebt, sizeof(int), 1, f) != 1) return FALSE;
+  return TRUE;
 }

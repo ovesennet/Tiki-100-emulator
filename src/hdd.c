@@ -32,6 +32,7 @@
 
 #include "hdd.h"
 #include "TIKI-100_emul.h"
+#include "sleep.h"
 #include "log.h"
 
 #include <stdio.h>
@@ -492,4 +493,43 @@ tiki_bool insertHdd (int drive, const char *path) {
 
 void removeHdd (int drive) {
   hddUnmount (drive);
+}
+
+/* sleep save/restore — saves controller state, not disk image data */
+tiki_bool hddSleepSave (FILE *f) {
+  if (fwrite (hddDataBuf, 1, HDD_SECTOR_SIZE, f) != HDD_SECTOR_SIZE) return FALSE;
+  if (fwrite (&hddDataPtr, sizeof(hddDataPtr), 1, f) != 1) return FALSE;
+  if (fwrite (&hddActiveCmd, sizeof(hddActiveCmd), 1, f) != 1) return FALSE;
+  if (fwrite (&hddTrackLo, sizeof(hddTrackLo), 1, f) != 1) return FALSE;
+  if (fwrite (&hddTrackHi, sizeof(hddTrackHi), 1, f) != 1) return FALSE;
+  if (fwrite (&hddSectorReg, sizeof(hddSectorReg), 1, f) != 1) return FALSE;
+  if (fwrite (&hddSectorCount, sizeof(hddSectorCount), 1, f) != 1) return FALSE;
+  if (fwrite (&hddSDH, sizeof(hddSDH), 1, f) != 1) return FALSE;
+  if (fwrite (&hddCommandReg, sizeof(hddCommandReg), 1, f) != 1) return FALSE;
+  if (fwrite (&hddPrecomp, sizeof(hddPrecomp), 1, f) != 1) return FALSE;
+  if (fwrite (&hddBusy, sizeof(hddBusy), 1, f) != 1) return FALSE;
+  if (fwrite (&hddReady, sizeof(hddReady), 1, f) != 1) return FALSE;
+  if (fwrite (&hddDRQ, sizeof(hddDRQ), 1, f) != 1) return FALSE;
+  if (fwrite (&hddSeekComplete, sizeof(hddSeekComplete), 1, f) != 1) return FALSE;
+  if (fwrite (&hddPhysDrive, sizeof(hddPhysDrive), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool hddSleepRestore (FILE *f) {
+  if (fread (hddDataBuf, 1, HDD_SECTOR_SIZE, f) != HDD_SECTOR_SIZE) return FALSE;
+  if (fread (&hddDataPtr, sizeof(hddDataPtr), 1, f) != 1) return FALSE;
+  if (fread (&hddActiveCmd, sizeof(hddActiveCmd), 1, f) != 1) return FALSE;
+  if (fread (&hddTrackLo, sizeof(hddTrackLo), 1, f) != 1) return FALSE;
+  if (fread (&hddTrackHi, sizeof(hddTrackHi), 1, f) != 1) return FALSE;
+  if (fread (&hddSectorReg, sizeof(hddSectorReg), 1, f) != 1) return FALSE;
+  if (fread (&hddSectorCount, sizeof(hddSectorCount), 1, f) != 1) return FALSE;
+  if (fread (&hddSDH, sizeof(hddSDH), 1, f) != 1) return FALSE;
+  if (fread (&hddCommandReg, sizeof(hddCommandReg), 1, f) != 1) return FALSE;
+  if (fread (&hddPrecomp, sizeof(hddPrecomp), 1, f) != 1) return FALSE;
+  if (fread (&hddBusy, sizeof(hddBusy), 1, f) != 1) return FALSE;
+  if (fread (&hddReady, sizeof(hddReady), 1, f) != 1) return FALSE;
+  if (fread (&hddDRQ, sizeof(hddDRQ), 1, f) != 1) return FALSE;
+  if (fread (&hddSeekComplete, sizeof(hddSeekComplete), 1, f) != 1) return FALSE;
+  if (fread (&hddPhysDrive, sizeof(hddPhysDrive), 1, f) != 1) return FALSE;
+  return TRUE;
 }

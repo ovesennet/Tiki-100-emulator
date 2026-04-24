@@ -1,4 +1,4 @@
-/* disk.c V1.1.1
+/* disk.c V1.3.0
  *
  * FD17xx emulering for TIKI-100_emul
  * Copyright (C) Asbjørn Djupdal 2000-2001
@@ -6,6 +6,7 @@
 
 #include "TIKI-100_emul.h"
 #include "protos.h"
+#include "sleep.h"
 
 #include <string.h>
 
@@ -388,4 +389,73 @@ void removeDisk (int drive) {
   struct diskParams *dp = drive ? &params1 :&params0;
 
   dp->active = FALSE;
+}
+
+/* sleep save/restore — saves FDC controller state, not disk image data */
+tiki_bool diskSleepSave (FILE *f) {
+  /* save which drive is active (0 or 1) */
+  int activeDrive = (params == &params1) ? 1 : 0;
+  if (fwrite (&activeDrive, sizeof(activeDrive), 1, f) != 1) return FALSE;
+  /* save diskParams metadata (not the image pointer) */
+  if (fwrite (&params0.diskImageSize, sizeof(long), 1, f) != 1) return FALSE;
+  if (fwrite (&params0.active, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&params0.tracks, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params0.sides, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params0.sectors, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params0.sectSize, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params0.realTrack, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.diskImageSize, sizeof(long), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.active, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.tracks, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.sides, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.sectors, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.sectSize, sizeof(int), 1, f) != 1) return FALSE;
+  if (fwrite (&params1.realTrack, sizeof(int), 1, f) != 1) return FALSE;
+  /* save controller registers */
+  if (fwrite (&side, sizeof(side), 1, f) != 1) return FALSE;
+  if (fwrite (&sideSelect, sizeof(sideSelect), 1, f) != 1) return FALSE;
+  if (fwrite (&motOn, sizeof(motOn), 1, f) != 1) return FALSE;
+  if (fwrite (&track, sizeof(track), 1, f) != 1) return FALSE;
+  if (fwrite (&sector, sizeof(sector), 1, f) != 1) return FALSE;
+  if (fwrite (&data, sizeof(data), 1, f) != 1) return FALSE;
+  if (fwrite (&status, sizeof(status), 1, f) != 1) return FALSE;
+  if (fwrite (&stepDir, sizeof(stepDir), 1, f) != 1) return FALSE;
+  if (fwrite (&command, sizeof(command), 1, f) != 1) return FALSE;
+  if (fwrite (&imageOffset, sizeof(imageOffset), 1, f) != 1) return FALSE;
+  if (fwrite (&endOffset, sizeof(endOffset), 1, f) != 1) return FALSE;
+  if (fwrite (&byteCount, sizeof(byteCount), 1, f) != 1) return FALSE;
+  return TRUE;
+}
+
+tiki_bool diskSleepRestore (FILE *f) {
+  int activeDrive;
+  if (fread (&activeDrive, sizeof(activeDrive), 1, f) != 1) return FALSE;
+  if (fread (&params0.diskImageSize, sizeof(long), 1, f) != 1) return FALSE;
+  if (fread (&params0.active, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&params0.tracks, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params0.sides, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params0.sectors, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params0.sectSize, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params0.realTrack, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params1.diskImageSize, sizeof(long), 1, f) != 1) return FALSE;
+  if (fread (&params1.active, sizeof(tiki_bool), 1, f) != 1) return FALSE;
+  if (fread (&params1.tracks, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params1.sides, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params1.sectors, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params1.sectSize, sizeof(int), 1, f) != 1) return FALSE;
+  if (fread (&params1.realTrack, sizeof(int), 1, f) != 1) return FALSE;
+  params = activeDrive ? &params1 : &params0;
+  if (fread (&side, sizeof(side), 1, f) != 1) return FALSE;
+  if (fread (&sideSelect, sizeof(sideSelect), 1, f) != 1) return FALSE;
+  if (fread (&motOn, sizeof(motOn), 1, f) != 1) return FALSE;
+  if (fread (&track, sizeof(track), 1, f) != 1) return FALSE;
+  if (fread (&sector, sizeof(sector), 1, f) != 1) return FALSE;
+  if (fread (&data, sizeof(data), 1, f) != 1) return FALSE;
+  if (fread (&status, sizeof(status), 1, f) != 1) return FALSE;
+  if (fread (&stepDir, sizeof(stepDir), 1, f) != 1) return FALSE;
+  if (fread (&command, sizeof(command), 1, f) != 1) return FALSE;
+  if (fread (&imageOffset, sizeof(imageOffset), 1, f) != 1) return FALSE;
+  if (fread (&endOffset, sizeof(endOffset), 1, f) != 1) return FALSE;
+  if (fread (&byteCount, sizeof(byteCount), 1, f) != 1) return FALSE;
+  return TRUE;
 }
